@@ -1,192 +1,238 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-// Test with npx hardhat test
+
 describe("AssetRegistry and AssetNFT", function () {
     let AssetNFT, assetNFT;
     let AssetRegistry, assetRegistry;
-    let MultiSigWallet, multiSigWallet;
+    let MultiSigWallet, // Factory
+        standardMultiSigWallet, // Instance
+        bankMultiSigWallet;     // Instance
     let VerifierOracle, verifierOracle;
-    let deployer, admin, owner1, otherAccount;
+    let deployer, admin, owner1, otherAccount, bankSignerAccount, anotherSignerAccount; // Added bankSignerAccount
+    let standardSigners, bankSigners;
 
-    // Roles (as bytes32, matching AccessControl setup)
-    // You can get these by calling e.g. assetRegistry.ADMIN_ROLE() in a script
-    // or by computing them: ethers.utils.id("ADMIN_ROLE") or ethers.utils.keccak256(ethers.utils.toUtf8Bytes("ADMIN_ROLE"))
-    // For simplicity, let's assume you have constants or will fetch them.
-    // If AssetRegistry grants ADMIN_ROLE to deployer in constructor, this is fine.
-    // const ADMIN_ROLE = ethers.utils.id("ADMIN_ROLE"); // Example
+    const HIGH_VALUE_THRESHOLD = ethers.parseUnits("100000", "ether"); // Same as in deploy script
+    const LOW_VALUE = ethers.parseUnits("1000", "ether");
+    const HIGH_VALUE = ethers.parseUnits("200000", "ether");
 
     beforeEach(async function () {
-        [deployer, admin, owner1, otherAccount] = await ethers.getSigners();
+        [deployer, admin, owner1, otherAccount, bankSignerAccount, anotherSignerAccount] = await ethers.getSigners();
 
-        // Deploy MultiSigWallet
+        // Deploy MultiSigWallet Factory
         MultiSigWallet = await ethers.getContractFactory("MultiSigWallet");
-        const initialSigners = [deployer.address, admin.address]; // Example signers
-        const requiredConfirmations = 1; // Example
-        multiSigWallet = await MultiSigWallet.deploy(initialSigners, requiredConfirmations);
-        await multiSigWallet.waitForDeployment();
+
+        // Deploy Standard MultiSigWallet
+        standardSigners = [owner1.address, anotherSignerAccount.address]; // Example: owner1 and another party
+        const standardReqConfirmations = 2;
+        standardMultiSigWallet = await MultiSigWallet.deploy(standardSigners, standardReqConfirmations);
+        await standardMultiSigWallet.waitForDeployment();
+
+        // Deploy Bank MultiSigWallet
+        bankSigners = [owner1.address, anotherSignerAccount.address, bankSignerAccount.address]; // Example: owner1, another party, bank
+        const bankReqConfirmations = 3;
+        bankMultiSigWallet = await MultiSigWallet.deploy(bankSigners, bankReqConfirmations);
+        await bankMultiSigWallet.waitForDeployment();
 
         // Deploy VerifierOracle
         VerifierOracle = await ethers.getContractFactory("VerifierOracle");
-        verifierOracle = await VerifierOracle.deploy(); // Assumes no constructor args
+        verifierOracle = await VerifierOracle.deploy();
         await verifierOracle.waitForDeployment();
 
         // Deploy AssetRegistry
         AssetRegistry = await ethers.getContractFactory("AssetRegistry");
         assetRegistry = await AssetRegistry.deploy(
-            await multiSigWallet.getAddress(),
-            await verifierOracle.getAddress()
+            await standardMultiSigWallet.getAddress(),
+            await bankMultiSigWallet.getAddress(),
+            await verifierOracle.getAddress(),
+            HIGH_VALUE_THRESHOLD
         );
         await assetRegistry.waitForDeployment();
 
-        // AssetNFT is deployed by AssetRegistry's constructor. Get its address.
+        // AssetNFT
         const assetNFTAddress = await assetRegistry.assetNft();
-        AssetNFT = await ethers.getContractFactory("AssetNFT"); // Get factory to attach
+        AssetNFT = await ethers.getContractFactory("AssetNFT");
         assetNFT = AssetNFT.attach(assetNFTAddress);
-
-        // Grant ADMIN_ROLE to the 'admin' signer if not already done by constructor for deployer
-        // For this test, we'll assume deployer (who deploys AssetRegistry) has ADMIN_ROLE by default.
-        // If you need a different admin:
-        // const ADMIN_ROLE_HASH = await assetRegistry.ADMIN_ROLE();
-        // await assetRegistry.connect(deployer).grantRole(ADMIN_ROLE_HASH, admin.address);
     });
 
-        describe("Asset Registration (Minting)", function () {
-        it("Should allow an admin to register a new asset and mint an NFT to an owner", async function () {
-            const tokenIdToMint = 0; // First token
+    describe("Asset Registration (Minting)", function () {
+        it("Should allow an admin to register a new asset (low value) and mint an NFT to an owner", async function () {
+            const tokenIdToMint = 0;
             const assetDetails = "Luxury Watch, Serial: XYZ123";
-
+            
             await expect(
-                assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails)
+                assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails, LOW_VALUE)
             ).to.emit(assetRegistry, "AssetRegistered")
-             .withArgs(tokenIdToMint, owner1.address, assetDetails);
+             .withArgs(tokenIdToMint, owner1.address, assetDetails, LOW_VALUE);
 
             expect(await assetNFT.ownerOf(tokenIdToMint)).to.equal(owner1.address);
 
             const storedAssetData = await assetRegistry.assetDataStore(tokenIdToMint);
-            
-            // --- Debugging Logs (can be removed or commented out after fixing) ---
-            console.log("DEBUG: Test reached before assertion for token:", tokenIdToMint);
-            console.log("DEBUG: storedAssetData raw object is:", storedAssetData);
-            try {
-                console.log("DEBUG: JSON.stringify(storedAssetData) is:", JSON.stringify(storedAssetData));
-            } catch (e) {
-                console.log("DEBUG: Error during JSON.stringify:", e);
-            }
-            // --- End Debugging Logs ---
-
-            // storedAssetData is directly the assetDetails string
-            expect(storedAssetData).to.equal(assetDetails); 
-
-            // To check lifecycleHistory, you'd ideally need an explicit getter in the contract
-            // if assetDataStore(tokenId) only returns the string when history is empty.
-            // For now, we can't directly check storedAssetData[1].length if storedAssetData is a string.
-            // If you add a getter like `getLifecycleHistory(tokenId)` in AssetRegistry.sol:
-            // const history = await assetRegistry.getLifecycleHistory(tokenIdToMint);
-            // expect(history.length).to.equal(0);
+            expect(storedAssetData.assetDetails).to.equal(assetDetails); // Access by name
+            expect(storedAssetData.value).to.equal(LOW_VALUE); // Access by name
         });
-        
+
+        it("Should allow an admin to register a new asset (high value) and mint an NFT to an owner", async function () {
+            const tokenIdToMint = 0; // First token in this test context
+            const assetDetails = "Rare Painting, ID: P789";
+            
+            await expect(
+                assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails, HIGH_VALUE)
+            ).to.emit(assetRegistry, "AssetRegistered")
+             .withArgs(tokenIdToMint, owner1.address, assetDetails, HIGH_VALUE);
+
+            expect(await assetNFT.ownerOf(tokenIdToMint)).to.equal(owner1.address);
+            const storedAssetData = await assetRegistry.assetDataStore(tokenIdToMint);
+            expect(storedAssetData.assetDetails).to.equal(assetDetails);
+            expect(storedAssetData.value).to.equal(HIGH_VALUE);
+        });
+
 
         it("Should increment tokenId for subsequent asset registrations", async function () {
             const assetDetails1 = "Artwork A";
             const assetDetails2 = "Artwork B";
 
-            await assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails1);
+            // Register first asset (tokenId 0)
+            await assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails1, LOW_VALUE);
             expect(await assetNFT.ownerOf(0)).to.equal(owner1.address);
 
-            await assetRegistry.connect(deployer).registerNewAsset(otherAccount.address, assetDetails2);
+            // Register second asset (tokenId 1)
+            await assetRegistry.connect(deployer).registerNewAsset(otherAccount.address, assetDetails2, HIGH_VALUE);
             expect(await assetNFT.ownerOf(1)).to.equal(otherAccount.address);
 
             const storedAssetData1 = await assetRegistry.assetDataStore(0);
-            // --- Debugging Logs (can be removed or commented out after fixing) ---
-            console.log("DEBUG: storedAssetData1 for token 0 is:", JSON.stringify(storedAssetData1));
-            // --- End Debugging Logs ---
-            expect(storedAssetData1).to.equal(assetDetails1); 
+            expect(storedAssetData1.assetDetails).to.equal(assetDetails1);
+            expect(storedAssetData1.value).to.equal(LOW_VALUE);
 
             const storedAssetData2 = await assetRegistry.assetDataStore(1);
-            // --- Debugging Logs (can be removed or commented out after fixing) ---
-            console.log("DEBUG: storedAssetData2 for token 1 is:", JSON.stringify(storedAssetData2));
-            // --- End Debugging Logs ---
-            expect(storedAssetData2).to.equal(assetDetails2); 
+            expect(storedAssetData2.assetDetails).to.equal(assetDetails2);
+            expect(storedAssetData2.value).to.equal(HIGH_VALUE);
         });
 
         it("Should prevent non-admins from registering a new asset", async function () {
             const assetDetails = "Forbidden Asset";
             const ADMIN_ROLE_HASH = await assetRegistry.ADMIN_ROLE();
-
-            // Check for the custom error AccessControlUnauthorizedAccount
-            // The error takes two arguments: the account and the required role
             await expect(
-                assetRegistry.connect(owner1).registerNewAsset(otherAccount.address, assetDetails)
+                assetRegistry.connect(owner1).registerNewAsset(otherAccount.address, assetDetails, LOW_VALUE)
             ).to.be.revertedWithCustomError(assetRegistry, "AccessControlUnauthorizedAccount")
-             .withArgs(owner1.address, ADMIN_ROLE_HASH); // Verify the account and role in the error
+             .withArgs(owner1.address, ADMIN_ROLE_HASH);
         });
-    }); // End of "Asset Registration (Minting)" describe block
+    });
 
-    describe("Asset Transfer (NFT)", function () {
-        let tokenIdToTransfer; // We will get this from the minting transaction
-        const initialAssetDetails = "Transferable Watch, Serial: TXYZ789";
+    // "Asset Transfer (NFT)" tests for direct transfers remain the same.
+    // They will still pass, showing direct transfers are possible.
+    describe("Asset Transfer (NFT) - Direct", function () {
+        let tokenIdToTransfer;
+        const initialAssetDetails = "Direct Transfer Watch";
 
         beforeEach(async function() {
-            // Mint an NFT to owner1 specifically for these transfer tests.
-            // The actual tokenId will be determined by AssetRegistry's _nextTokenId.
-            const tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, initialAssetDetails);
+            const tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, initialAssetDetails, LOW_VALUE); // Register with a value
             const receipt = await tx.wait();
-
-            // Find the AssetRegistered event to get the tokenId
             const event = receipt.logs.find(log => {
                 try {
                     const parsedLog = assetRegistry.interface.parseLog(log);
                     return parsedLog && parsedLog.name === "AssetRegistered";
-                } catch (error) {
-                    return false; // Ignore logs that can't be parsed by this interface
-                }
+                } catch (error) { return false; }
             });
-
-            if (event) {
-                tokenIdToTransfer = event.args.tokenId;
-            } else {
-                throw new Error("AssetRegistered event not found after minting for transfer test setup.");
-            }
-            // owner1 now owns tokenIdToTransfer
+            if (event) { tokenIdToTransfer = event.args.tokenId; } 
+            else { throw new Error("AssetRegistered event not found for direct transfer test setup."); }
         });
 
-        it("Should allow the owner of an NFT to transfer it to another account", async function () {
-            // owner1 is the current owner of tokenIdToTransfer
-            // otherAccount will be the new owner
-
-            // Verify initial owner
+        it("Should allow the owner of an NFT to transfer it directly to another account", async function () {
             expect(await assetNFT.ownerOf(tokenIdToTransfer)).to.equal(owner1.address);
-
-            // Perform the transfer from owner1 to otherAccount
-            // safeTransferFrom(from, to, tokenId)
             await expect(
                 assetNFT.connect(owner1).safeTransferFrom(owner1.address, otherAccount.address, tokenIdToTransfer)
             ).to.emit(assetNFT, "Transfer")
              .withArgs(owner1.address, otherAccount.address, tokenIdToTransfer);
-
-            // Verify new owner
             expect(await assetNFT.ownerOf(tokenIdToTransfer)).to.equal(otherAccount.address);
         });
 
-        it("Should prevent non-owners from transferring an NFT", async function () {
-            // deployer is not the owner of tokenIdToTransfer (owner1 is)
-            // The sender (deployer) is not the owner and has no approval.
+        it("Should prevent non-owners from transferring an NFT directly", async function () {
             await expect(
                 assetNFT.connect(deployer).safeTransferFrom(owner1.address, otherAccount.address, tokenIdToTransfer)
             ).to.be.revertedWithCustomError(assetNFT, "ERC721InsufficientApproval")
-             .withArgs(deployer.address, tokenIdToTransfer); // operator, tokenId
-            // Alternative if the above is not the exact error:
-            // ).to.be.revertedWithCustomError(assetNFT, "ERC721IncorrectOwner")
-            //  .withArgs(deployer.address, tokenIdToTransfer, owner1.address); // sender, tokenId, owner
+             .withArgs(deployer.address, tokenIdToTransfer);
         });
 
-        it("Should prevent transferring an NFT that does not exist", async function () {
+        it("Should prevent transferring a non-existent NFT directly", async function () {
             const nonExistentTokenId = 999;
             await expect(
                 assetNFT.connect(owner1).safeTransferFrom(owner1.address, otherAccount.address, nonExistentTokenId)
             ).to.be.revertedWithCustomError(assetNFT, "ERC721NonexistentToken")
-             .withArgs(nonExistentTokenId); // tokenId
+             .withArgs(nonExistentTokenId);
         });
-    }); 
+    });
 
+    // NEW describe block for initiateTransfer
+    describe("Asset Transfer via AssetRegistry (MultiSig)", function () {
+        let lowValueTokenId;
+        let highValueTokenId;
+
+        beforeEach(async function() {
+            // Register a low-value asset to owner1
+            let tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, "LowValueCar", LOW_VALUE);
+            let receipt = await tx.wait();
+            let event = receipt.logs.find(log => { try { const p = assetRegistry.interface.parseLog(log); return p && p.name === "AssetRegistered"; } catch (e) { return false; } });
+            if (event) { lowValueTokenId = event.args.tokenId; } else { throw new Error("Low value asset reg failed."); }
+
+            // Register a high-value asset to owner1
+            tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, "HighValuePainting", HIGH_VALUE);
+            receipt = await tx.wait();
+            event = receipt.logs.find(log => { try { const p = assetRegistry.interface.parseLog(log); return p && p.name === "AssetRegistered"; } catch (e) { return false; } });
+            if (event) { highValueTokenId = event.args.tokenId; } else { throw new Error("High value asset reg failed."); }
+
+            // Ensure owner1 is a signer on both multi-sig wallets for these tests
+            // (This was set up in the top-level beforeEach with standardSigners and bankSigners)
+        });
+
+        it("Should initiate and complete transfer for a LOW-VALUE asset via Standard MultiSig", async function () {
+            // 1. Owner1 approves the Standard MultiSigWallet for the lowValueTokenId
+            await assetNFT.connect(owner1).approve(await standardMultiSigWallet.getAddress(), lowValueTokenId);
+            expect(await assetNFT.getApproved(lowValueTokenId)).to.equal(await standardMultiSigWallet.getAddress());
+            console.log("owner1.address:", owner1.address);
+            console.log("standardSigners:", standardSigners);
+            console.log("bankSigners:", bankSigners);
+            // 2. Owner1 initiates transfer through AssetRegistry
+            await expect(assetRegistry.connect(owner1).initiateTransfer(lowValueTokenId, otherAccount.address))
+                .to.emit(assetRegistry, "TransferInitiated")
+                .withArgs(lowValueTokenId, owner1.address, otherAccount.address, await standardMultiSigWallet.getAddress(), 0); // Assuming txId 0 for first tx
+
+            // 3. Signers (owner1, anotherSignerAccount) confirm on StandardMultiSigWallet
+            // Note: MultiSigWallet transaction IDs are typically sequential (0, 1, 2...).
+            const multiSigTxId = 0; // First transaction for this wallet instance in this test
+            await standardMultiSigWallet.connect(owner1).confirmTransaction(multiSigTxId);
+            await standardMultiSigWallet.connect(anotherSignerAccount).confirmTransaction(multiSigTxId); // This should execute it
+
+            // 4. Verify NFT is transferred to otherAccount
+            expect(await assetNFT.ownerOf(lowValueTokenId)).to.equal(otherAccount.address);
+        });
+
+        it("Should initiate and complete transfer for a HIGH-VALUE asset via Bank MultiSig", async function () {
+            // 1. Owner1 approves the Bank MultiSigWallet for the highValueTokenId
+            await assetNFT.connect(owner1).approve(await bankMultiSigWallet.getAddress(), highValueTokenId);
+            expect(await assetNFT.getApproved(highValueTokenId)).to.equal(await bankMultiSigWallet.getAddress());
+
+            // 2. Owner1 initiates transfer
+            // Assuming this is the first transaction for bankMultiSigWallet in its lifetime for this test run, so txId might be 0.
+            // If standardMultiSigWallet was used before, bankMultiSigWallet's tx count is independent.
+            const expectedBankMultiSigTxId = await bankMultiSigWallet.transactionCount(); // Get current count before creating
+            await expect(assetRegistry.connect(owner1).initiateTransfer(highValueTokenId, otherAccount.address))
+                .to.emit(assetRegistry, "TransferInitiated")
+                .withArgs(highValueTokenId, owner1.address, otherAccount.address, await bankMultiSigWallet.getAddress(), expectedBankMultiSigTxId);
+
+            // 3. Signers (owner1, anotherSignerAccount, bankSignerAccount) confirm on BankMultiSigWallet
+            await bankMultiSigWallet.connect(owner1).confirmTransaction(expectedBankMultiSigTxId);
+            await bankMultiSigWallet.connect(anotherSignerAccount).confirmTransaction(expectedBankMultiSigTxId);
+            await bankMultiSigWallet.connect(bankSignerAccount).confirmTransaction(expectedBankMultiSigTxId); // This should execute
+
+            // 4. Verify NFT is transferred
+            expect(await assetNFT.ownerOf(highValueTokenId)).to.equal(otherAccount.address);
+        });
+
+        it("Should fail to initiate transfer if MultiSigWallet is not approved", async function () {
+            // owner1 does NOT approve any multisig wallet
+            await expect(
+                assetRegistry.connect(owner1).initiateTransfer(lowValueTokenId, otherAccount.address)
+            ).to.be.revertedWith("AssetRegistry: Chosen MultiSigWallet not approved for this token.");
+        });
+    });
 });

@@ -1,4 +1,3 @@
-// filepath: /my-asset-management-dapp/my-asset-management-dapp/contracts/AssetRegistry.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -19,8 +18,10 @@ contract AssetRegistry is AccessControl {
 
     // The linked NFT contract
     AssetNFT public assetNft;
-    MultiSigWallet public multiSigWallet;
+    MultiSigWallet public standardMultiSigWallet;
+    MultiSigWallet public bankMultiSigWallet;
     VerifierOracle public verifierOracle;
+    uint256 public highValueThreshold;
 
     // Struct to hold details about a lifecycle event
     struct LifecycleEvent {
@@ -33,6 +34,7 @@ contract AssetRegistry is AccessControl {
     // Struct to hold all data for a specific asset
     struct AssetData {
         string assetDetails; // e.g., JSON string with property address, VIN, etc.
+        uint256 value;       // Monetary value of the asset
         LifecycleEvent[] lifecycleHistory;
     }
 
@@ -42,40 +44,37 @@ contract AssetRegistry is AccessControl {
     // Counter for issuing new tokenIds
     uint256 private _nextTokenId;
 
-    event AssetRegistered(uint256 indexed tokenId, address indexed owner, string assetDetails);
+    event AssetRegistered(uint256 indexed tokenId, address indexed owner, string assetDetails, uint256 value);
     event LifecycleEventAdded(uint256 indexed tokenId, string eventType, string description, address indexed recordedBy);
+    event TransferInitiated(uint256 indexed tokenId, address indexed from, address indexed to, address multiSigWalletUsed, uint256 multiSigTxId);
 
-    constructor(address multiSigWalletAddress, address verifierOracleAddress) {
-        // Grant the contract deployer the default admin role
+    constructor(
+        address _standardMultiSigWalletAddress,
+        address _bankMultiSigWalletAddress,
+        address _verifierOracleAddress,
+        uint256 _highValueThreshold
+    ) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
 
-        // Deploy the NFT contract and transfer its ownership to this registry contract
-        assetNft = new AssetNFT(address(this));
-        multiSigWallet = MultiSigWallet(multiSigWalletAddress);
-        verifierOracle = VerifierOracle(verifierOracleAddress);
+        assetNft = new AssetNFT(address(this)); // AssetRegistry owns AssetNFT
+        standardMultiSigWallet = MultiSigWallet(_standardMultiSigWalletAddress);
+        bankMultiSigWallet = MultiSigWallet(_bankMultiSigWalletAddress);
+        verifierOracle = VerifierOracle(_verifierOracleAddress);
+        highValueThreshold = _highValueThreshold;
     }
 
-    /**
-     * @dev Registers a new asset in the system.
-     * Mints a corresponding NFT and assigns it to the owner.
-     * Only callable by users with the ADMIN_ROLE.
-     */
-    function registerNewAsset(address owner, string calldata assetDetails) public onlyRole(ADMIN_ROLE) {
+    function registerNewAsset(address owner, string calldata assetDetails, uint256 value) public onlyRole(ADMIN_ROLE) {
         uint256 tokenId = _nextTokenId++;
         assetNft.safeMint(owner, tokenId);
         assetDataStore[tokenId].assetDetails = assetDetails;
+        assetDataStore[tokenId].value = value;
 
-        emit AssetRegistered(tokenId, owner, assetDetails);
+        emit AssetRegistered(tokenId, owner, assetDetails, value);
     }
 
-    /**
-     * @dev Adds a new lifecycle event to an asset's history.
-     * Only callable by authorized certified professionals.
-     * The professional digitally "signs" the record with their address.
-     */
     function addLifecycleEvent(uint256 tokenId, string calldata eventType, string calldata description) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
-        require(assetNft.ownerOf(tokenId) != address(0), "Asset does not exist.");
+        require(assetDataStore[tokenId].value > 0 || keccak256(bytes(assetDataStore[tokenId].assetDetails)) != keccak256(bytes("")), "Asset does not exist or not fully registered."); // Check if asset exists
         
         assetDataStore[tokenId].lifecycleHistory.push(LifecycleEvent({
             timestamp: block.timestamp,
@@ -85,6 +84,51 @@ contract AssetRegistry is AccessControl {
         }));
 
         emit LifecycleEventAdded(tokenId, eventType, description, msg.sender);
+    }
+
+    /**
+     * @dev Initiates a transfer request for an asset through the appropriate MultiSigWallet.
+     * The caller (owner of the NFT) must first approve the chosen MultiSigWallet
+     * to transfer this specific token on the AssetNFT contract.
+     */
+    function initiateTransfer(uint256 tokenId, address to) external {
+        address currentOwner = assetNft.ownerOf(tokenId);
+        require(currentOwner == msg.sender, "AssetRegistry: Caller is not the owner of the token.");
+        require(to != address(0), "AssetRegistry: Transfer to the zero address is not allowed.");
+        require(assetDataStore[tokenId].value > 0 || keccak256(bytes(assetDataStore[tokenId].assetDetails)) != keccak256(bytes("")), "Asset not registered in AssetRegistry.");
+
+
+        MultiSigWallet targetMultiSig;
+        if (assetDataStore[tokenId].value > highValueThreshold) {
+            targetMultiSig = bankMultiSigWallet;
+        } else {
+            targetMultiSig = standardMultiSigWallet;
+        }
+
+        // IMPORTANT: The owner (msg.sender) must have ALREADY CALLED:
+        // assetNft.approve(address(targetMultiSig), tokenId)
+        require(assetNft.getApproved(tokenId) == address(targetMultiSig), "AssetRegistry: Chosen MultiSigWallet not approved for this token.");
+
+    bytes memory callData = abi.encodeWithSelector(
+    bytes4(keccak256("safeTransferFrom(address,address,uint256)")),
+    currentOwner,
+    to,
+    tokenId
+);
+
+        // The MultiSigWallet's createTransaction function should be callable by anyone authorized (e.g., onlySigner)
+        // Here, we assume the currentOwner (msg.sender) is a signer on the targetMultiSig or can create tx.
+        // If not, this model needs adjustment (e.g. AssetRegistry creates it via an internal trusted call).
+        // For now, let's assume the MultiSigWallet allows any of its signers to create a transaction.
+        // The owner (msg.sender) should be a signer on the MultiSigWallet they intend to use.
+        uint256 multiSigTxId = targetMultiSig.transactionCount(); // Get next txId
+        targetMultiSig.createTransaction(
+            address(assetNft), // Target contract to call
+            0,                 // ETH value
+            callData           // Encoded function call
+        );
+
+        emit TransferInitiated(tokenId, currentOwner, to, address(targetMultiSig), multiSigTxId);
     }
 
     // --- Role Management Functions ---

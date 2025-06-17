@@ -1,4 +1,3 @@
-// filepath: /my-asset-management-dapp/my-asset-management-dapp/contracts/VerifierOracle.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 

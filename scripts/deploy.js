@@ -1,39 +1,49 @@
 const hre = require("hardhat");
 
 async function main() {
-    const [deployer] = await hre.ethers.getSigners();
+    const [deployer, anotherSigner, bankSigner] = await hre.ethers.getSigners(); // Get more signers
     console.log("Deploying contracts with the account:", deployer.address);
+    console.log("Another signer for Standard MultiSig:", anotherSigner.address);
+    console.log("Bank signer for Bank MultiSig:", bankSigner.address);
 
-    // 1. Deploy MultiSigWallet
+    // 1a. Deploy Standard MultiSigWallet
     const MultiSigWallet = await hre.ethers.getContractFactory("MultiSigWallet");
-    // Replace with actual signer addresses and desired confirmation count
-    // For local testing, using the deployer as one of the signers is common.
-    const initialSigners = [deployer.address]; 
-    const requiredConfirmations = 1; 
-    const multiSigWallet = await MultiSigWallet.deploy(initialSigners, requiredConfirmations);
-    // await multiSigWallet.deployed(); // .deployed() is deprecated, wait for the transaction to be mined
-    await multiSigWallet.waitForDeployment(); 
-    console.log("MultiSigWallet deployed to:", await multiSigWallet.getAddress());
+    const standardSigners = [deployer.address, anotherSigner.address]; 
+    const standardRequiredConfirmations = 2; // Example: 2 of 2
+    const standardMultiSigWallet = await MultiSigWallet.deploy(standardSigners, standardRequiredConfirmations);
+    await standardMultiSigWallet.waitForDeployment(); 
+    console.log("Standard MultiSigWallet deployed to:", await standardMultiSigWallet.getAddress());
+
+    // 1b. Deploy Bank/High-Value MultiSigWallet
+    const bankSigners = [deployer.address, anotherSigner.address, bankSigner.address];
+    const bankRequiredConfirmations = 3; // Example: 3 of 3 (owner, other party, bank)
+    const bankMultiSigWallet = await MultiSigWallet.deploy(bankSigners, bankRequiredConfirmations);
+    await bankMultiSigWallet.waitForDeployment();
+    console.log("Bank MultiSigWallet deployed to:", await bankMultiSigWallet.getAddress());
 
     // 2. Deploy VerifierOracle
     const VerifierOracle = await hre.ethers.getContractFactory("VerifierOracle");
-    // VerifierOracle's Ownable constructor takes msg.sender (the deployer) by default if not overridden
-    // If VerifierOracle's constructor is just `constructor() Ownable(msg.sender) {}`, no args are needed here.
-    // If it explicitly takes an initialOwner: `constructor(address initialOwner) Ownable(initialOwner) {}`
-    // then you'd pass `deployer.address` or similar. Assuming it's like AssetNFT and takes initialOwner:
-    const verifierOracle = await VerifierOracle.deploy(); // Pass deployer as initial owner
-    // await verifierOracle.deployed();
+    const verifierOracle = await VerifierOracle.deploy(); 
     await verifierOracle.waitForDeployment();
     console.log("VerifierOracle deployed to:", await verifierOracle.getAddress());
 
-    // 3. Deploy AssetRegistry, passing the addresses of MultiSigWallet and VerifierOracle
+    // 3. Define High-Value Threshold (e.g., 100000 units of currency/value)
+    const highValueThreshold = hre.ethers.parseUnits("100000", "ether"); // Example: 100,000 ETH as high value, adjust as needed
+
+    // 4. Deploy AssetRegistry
     const AssetRegistry = await hre.ethers.getContractFactory("AssetRegistry");
-    const assetRegistry = await AssetRegistry.deploy(await multiSigWallet.getAddress(), await verifierOracle.getAddress());
-    // await assetRegistry.deployed();
+    const assetRegistry = await AssetRegistry.deploy(
+        await standardMultiSigWallet.getAddress(),
+        await bankMultiSigWallet.getAddress(),
+        await verifierOracle.getAddress(),
+        highValueThreshold
+    );
     await assetRegistry.waitForDeployment();
     console.log("AssetRegistry deployed to:", await assetRegistry.getAddress());
+    console.log("AssetRegistry highValueThreshold set to:", (await assetRegistry.highValueThreshold()).toString());
 
-    // 4. Get the address of AssetNFT (which was deployed by AssetRegistry's constructor)
+
+    // 5. Get the address of AssetNFT
     const assetNftAddress = await assetRegistry.assetNft();
     console.log("AssetNFT (deployed by AssetRegistry) is at:", assetNftAddress);
 

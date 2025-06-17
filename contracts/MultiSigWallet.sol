@@ -1,13 +1,8 @@
-// filepath: /my-asset-management-dapp/my-asset-management-dapp/contracts/MultiSigWallet.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/**
- * @title MultiSigWallet
- * @dev A multi-signature wallet that requires multiple signatures for transactions.
- */
 contract MultiSigWallet is Ownable {
     event Deposit(address indexed sender, uint256 amount);
     event TransactionCreated(uint256 indexed transactionId, address indexed to, uint256 value, bytes data);
@@ -25,32 +20,29 @@ contract MultiSigWallet is Ownable {
 
     mapping(uint256 => Transaction) public transactions;
     mapping(uint256 => mapping(address => bool)) public isConfirmed;
+
     address[] public signers;
+    mapping(address => bool) public isSigner;
     uint256 public requiredConfirmations;
     uint256 public transactionCount;
 
     modifier onlySigner() {
-        require(isSigner(msg.sender), "Not a signer");
+        require(isSigner[msg.sender], "Not a signer");
         _;
     }
 
-    constructor(address[] memory _signers, uint256 _requiredConfirmations) Ownable(msg.sender) { // <--- This line
+    constructor(address[] memory _signers, uint256 _requiredConfirmations) Ownable(msg.sender) {
         require(_signers.length > 0, "Signers required");
         require(_requiredConfirmations > 0 && _requiredConfirmations <= _signers.length, "Invalid number of required confirmations");
 
         for (uint256 i = 0; i < _signers.length; i++) {
-            signers.push(_signers[i]);
+            address signer = _signers[i];
+            require(signer != address(0), "Invalid signer");
+            require(!isSigner[signer], "Duplicate signer");
+            signers.push(signer);
+            isSigner[signer] = true;
         }
         requiredConfirmations = _requiredConfirmations;
-    }
-
-    function isSigner(address account) public view returns (bool) {
-        for (uint256 i = 0; i < signers.length; i++) {
-            if (signers[i] == account) {
-                return true;
-            }
-        }
-        return false;
     }
 
     function deposit() external payable {

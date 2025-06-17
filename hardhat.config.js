@@ -18,7 +18,5 @@ module.exports = {
   networks: {
     hardhat: {
     },
-    // ... other network configurations
   },
-  // ... other configurations
 };
