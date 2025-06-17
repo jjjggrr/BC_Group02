@@ -120,8 +120,73 @@ describe("AssetRegistry and AssetNFT", function () {
             ).to.be.revertedWithCustomError(assetRegistry, "AccessControlUnauthorizedAccount")
              .withArgs(owner1.address, ADMIN_ROLE_HASH); // Verify the account and role in the error
         });
-    });
+    }); // End of "Asset Registration (Minting)" describe block
 
-    // You can add more describe blocks for other functionalities like `addLifecycleEvent`
-    // and later for the `initiateTransfer` flow.
+    describe("Asset Transfer (NFT)", function () {
+        let tokenIdToTransfer; // We will get this from the minting transaction
+        const initialAssetDetails = "Transferable Watch, Serial: TXYZ789";
+
+        beforeEach(async function() {
+            // Mint an NFT to owner1 specifically for these transfer tests.
+            // The actual tokenId will be determined by AssetRegistry's _nextTokenId.
+            const tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, initialAssetDetails);
+            const receipt = await tx.wait();
+
+            // Find the AssetRegistered event to get the tokenId
+            const event = receipt.logs.find(log => {
+                try {
+                    const parsedLog = assetRegistry.interface.parseLog(log);
+                    return parsedLog && parsedLog.name === "AssetRegistered";
+                } catch (error) {
+                    return false; // Ignore logs that can't be parsed by this interface
+                }
+            });
+
+            if (event) {
+                tokenIdToTransfer = event.args.tokenId;
+            } else {
+                throw new Error("AssetRegistered event not found after minting for transfer test setup.");
+            }
+            // owner1 now owns tokenIdToTransfer
+        });
+
+        it("Should allow the owner of an NFT to transfer it to another account", async function () {
+            // owner1 is the current owner of tokenIdToTransfer
+            // otherAccount will be the new owner
+
+            // Verify initial owner
+            expect(await assetNFT.ownerOf(tokenIdToTransfer)).to.equal(owner1.address);
+
+            // Perform the transfer from owner1 to otherAccount
+            // safeTransferFrom(from, to, tokenId)
+            await expect(
+                assetNFT.connect(owner1).safeTransferFrom(owner1.address, otherAccount.address, tokenIdToTransfer)
+            ).to.emit(assetNFT, "Transfer")
+             .withArgs(owner1.address, otherAccount.address, tokenIdToTransfer);
+
+            // Verify new owner
+            expect(await assetNFT.ownerOf(tokenIdToTransfer)).to.equal(otherAccount.address);
+        });
+
+        it("Should prevent non-owners from transferring an NFT", async function () {
+            // deployer is not the owner of tokenIdToTransfer (owner1 is)
+            // The sender (deployer) is not the owner and has no approval.
+            await expect(
+                assetNFT.connect(deployer).safeTransferFrom(owner1.address, otherAccount.address, tokenIdToTransfer)
+            ).to.be.revertedWithCustomError(assetNFT, "ERC721InsufficientApproval")
+             .withArgs(deployer.address, tokenIdToTransfer); // operator, tokenId
+            // Alternative if the above is not the exact error:
+            // ).to.be.revertedWithCustomError(assetNFT, "ERC721IncorrectOwner")
+            //  .withArgs(deployer.address, tokenIdToTransfer, owner1.address); // sender, tokenId, owner
+        });
+
+        it("Should prevent transferring an NFT that does not exist", async function () {
+            const nonExistentTokenId = 999;
+            await expect(
+                assetNFT.connect(owner1).safeTransferFrom(owner1.address, otherAccount.address, nonExistentTokenId)
+            ).to.be.revertedWithCustomError(assetNFT, "ERC721NonexistentToken")
+             .withArgs(nonExistentTokenId); // tokenId
+        });
+    }); 
+
 });
