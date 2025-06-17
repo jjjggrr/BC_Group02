@@ -1,0 +1,31 @@
+{
+  "name": "my-asset-management-dapp",
+  "version": "1.0.0",
+  "description": "A decentralized application for tracking ownership, repairs, damages, and investments in high-value assets using smart contracts.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "axios": "^0.21.1",
+    "hardhat": "^2.24.3",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "4.0.3",
+    "web3": "^1.5.0"
+  },
+  "devDependencies": {
+    "@babel/preset-react": "^7.14.5"
+  },
+  "keywords": [
+    "blockchain",
+    "nft",
+    "asset management",
+    "smart contracts"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

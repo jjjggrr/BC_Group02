@@ -1,8 +1,11 @@
+// filepath: /my-asset-management-dapp/my-asset-management-dapp/contracts/AssetRegistry.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./AssetNFT.sol";
+import "./MultiSigWallet.sol";
+import "./VerifierOracle.sol";
 
 /**
  * @title AssetRegistry
@@ -16,6 +19,8 @@ contract AssetRegistry is AccessControl {
 
     // The linked NFT contract
     AssetNFT public assetNft;
+    MultiSigWallet public multiSigWallet;
+    VerifierOracle public verifierOracle;
 
     // Struct to hold details about a lifecycle event
     struct LifecycleEvent {
@@ -40,13 +45,15 @@ contract AssetRegistry is AccessControl {
     event AssetRegistered(uint256 indexed tokenId, address indexed owner, string assetDetails);
     event LifecycleEventAdded(uint256 indexed tokenId, string eventType, string description, address indexed recordedBy);
 
-    constructor() {
+    constructor(address multiSigWalletAddress, address verifierOracleAddress) {
         // Grant the contract deployer the default admin role
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
 
         // Deploy the NFT contract and transfer its ownership to this registry contract
         assetNft = new AssetNFT(address(this));
+        multiSigWallet = MultiSigWallet(multiSigWalletAddress);
+        verifierOracle = VerifierOracle(verifierOracleAddress);
     }
 
     /**

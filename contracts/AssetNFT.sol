@@ -1,3 +1,4 @@
+// filepath: /my-asset-management-dapp/my-asset-management-dapp/contracts/AssetNFT.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -6,17 +7,27 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title AssetNFT
- * @dev This is the core NFT contract representing a unique high-value asset.
- * The AssetRegistry contract is the owner and is the only one authorized to mint new assets.
+ * @dev This contract represents a unique high-value asset as an NFT.
+ * It includes functions for minting NFTs and managing ownership.
  */
 contract AssetNFT is ERC721, Ownable {
-    constructor(address initialOwner) ERC721("National Asset Token", "NAT") Ownable(initialOwner) {}
+    uint256 private _nextTokenId;
+
+    constructor() ERC721("HighValueAsset", "HVA") {}
 
     /**
      * @dev Mints a new asset NFT and assigns it to an owner.
-     * Can only be called by the current owner of this contract (the AssetRegistry).
+     * Can only be called by the current owner of this contract.
      */
-    function safeMint(address to, uint256 tokenId) public onlyOwner {
+    function safeMint(address to) public onlyOwner {
+        uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
+    }
+
+    /**
+     * @dev Returns the next token ID to be minted.
+     */
+    function getNextTokenId() public view returns (uint256) {
+        return _nextTokenId;
     }
 }

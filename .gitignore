@@ -1,0 +1,28 @@
+# Node modules
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories
+jspm_packages/
+
+# Optional: OS-specific files
+.DS_Store
+Thumbs.db
+
+# Optional: Environment files
+.env
+.env.*.local
+
+# Optional: IDE/editor config (add based on your tools)
+.vscode/
+.idea/
+*.sw?
+
+# Optional: Build outputs (if applicable)
+dist/
+build/
+coverage/
