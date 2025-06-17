@@ -237,4 +237,55 @@ describe("AssetRegistry and AssetNFT", function () {
             ).to.be.revertedWith("AssetRegistry: Chosen MultiSigWallet not approved for this token.");
         });
     });
+
+    describe("Asset Value Management", function () {
+        let assetId;
+        const initialValue = ethers.parseUnits("50000", "ether"); // e.g., $50,000
+        let certifiedProfessional;
+
+        beforeEach(async function() {
+            // Use 'anotherSignerAccount' as our certified professional for this test
+            certifiedProfessional = anotherSignerAccount;
+
+            // Grant the role to our designated professional
+            await assetRegistry.connect(deployer).grantCertifiedProfessionalRole(certifiedProfessional.address);
+
+            // Register a new asset to test with
+            const tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, "Test Car", initialValue);
+            const receipt = await tx.wait();
+            const event = receipt.logs.find(log => { try { const p = assetRegistry.interface.parseLog(log); return p && p.name === "AssetRegistered"; } catch (e) { return false; } });
+            assetId = event.args.tokenId;
+        });
+
+        it("Should allow a certified professional to update an asset's value", async function () {
+            const newValue = ethers.parseUnits("20000", "ether"); // Value reduced after an "accident"
+            
+            await expect(assetRegistry.connect(certifiedProfessional).updateAssetValue(assetId, newValue))
+                .to.emit(assetRegistry, "AssetValueUpdated")
+                .withArgs(assetId, newValue, certifiedProfessional.address);
+
+            const storedAssetData = await assetRegistry.assetDataStore(assetId);
+            expect(storedAssetData.value).to.equal(newValue);
+        });
+
+        it("Should prevent a non-certified user from updating an asset's value", async function () {
+            const newValue = ethers.parseUnits("60000", "ether");
+            const CERTIFIED_PROFESSIONAL_ROLE_HASH = await assetRegistry.CERTIFIED_PROFESSIONAL_ROLE();
+
+            // The owner of the asset tries to fraudulently increase its value
+            await expect(
+                assetRegistry.connect(owner1).updateAssetValue(assetId, newValue)
+            ).to.be.revertedWithCustomError(assetRegistry, "AccessControlUnauthorizedAccount")
+             .withArgs(owner1.address, CERTIFIED_PROFESSIONAL_ROLE_HASH);
+        });
+
+        it("Should prevent updating the value of a non-existent asset", async function () {
+            const nonExistentTokenId = 999;
+            const newValue = ethers.parseUnits("10000", "ether");
+
+            await expect(
+                assetRegistry.connect(certifiedProfessional).updateAssetValue(nonExistentTokenId, newValue)
+            ).to.be.revertedWith("Asset does not exist or not fully registered.");
+        });
+    });
 });

@@ -8,7 +8,7 @@ import "./VerifierOracle.sol";
 
 /**
  * @title AssetRegistry
- * @dev Manages the creation and lifecycle of assets represented by NFTs.
+ * @dev Manages the creation and lifecycle of assets represented by NFTs. Also stores the current estimated value
  */
 contract AssetRegistry is AccessControl {
     // Role definitions
@@ -47,6 +47,7 @@ contract AssetRegistry is AccessControl {
     event AssetRegistered(uint256 indexed tokenId, address indexed owner, string assetDetails, uint256 value);
     event LifecycleEventAdded(uint256 indexed tokenId, string eventType, string description, address indexed recordedBy);
     event TransferInitiated(uint256 indexed tokenId, address indexed from, address indexed to, address multiSigWalletUsed, uint256 multiSigTxId);
+    event AssetValueUpdated(uint256 indexed tokenId, uint256 newValue, address indexed updatedBy); // New Event
 
     constructor(
         address _standardMultiSigWalletAddress,
@@ -86,6 +87,20 @@ contract AssetRegistry is AccessControl {
         emit LifecycleEventAdded(tokenId, eventType, description, msg.sender);
     }
 
+    /**
+     * @dev Updates the estimated value of a registered asset.
+     * Can only be called by a user with the CERTIFIED_PROFESSIONAL_ROLE.
+     * This is used to reflect changes in value due to damage, repairs, or market shifts.
+     */
+    function updateAssetValue(uint256 tokenId, uint256 newValue) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
+        // Ensure the asset exists before trying to update it.
+        require(assetDataStore[tokenId].value > 0 || keccak256(bytes(assetDataStore[tokenId].assetDetails)) != keccak256(bytes("")), "Asset does not exist or not fully registered.");
+        
+        assetDataStore[tokenId].value = newValue;
+
+        emit AssetValueUpdated(tokenId, newValue, msg.sender);
+    }
+    
     /**
      * @dev Initiates a transfer request for an asset through the appropriate MultiSigWallet.
      * The caller (owner of the NFT) must first approve the chosen MultiSigWallet
