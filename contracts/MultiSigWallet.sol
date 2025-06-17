@@ -34,7 +34,7 @@ contract MultiSigWallet is Ownable {
         _;
     }
 
-    constructor(address[] memory _signers, uint256 _requiredConfirmations) {
+    constructor(address[] memory _signers, uint256 _requiredConfirmations) Ownable(msg.sender) { // <--- This line
         require(_signers.length > 0, "Signers required");
         require(_requiredConfirmations > 0 && _requiredConfirmations <= _signers.length, "Invalid number of required confirmations");
 

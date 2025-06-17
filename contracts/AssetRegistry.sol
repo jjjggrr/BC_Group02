@@ -64,10 +64,8 @@ contract AssetRegistry is AccessControl {
     function registerNewAsset(address owner, string calldata assetDetails) public onlyRole(ADMIN_ROLE) {
         uint256 tokenId = _nextTokenId++;
         assetNft.safeMint(owner, tokenId);
-        assetDataStore[tokenId] = AssetData({
-            assetDetails: assetDetails,
-            lifecycleHistory: new LifecycleEvent[](0)
-        });
+        assetDataStore[tokenId].assetDetails = assetDetails;
+
         emit AssetRegistered(tokenId, owner, assetDetails);
     }
 

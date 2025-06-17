@@ -10,6 +10,7 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^5.3.0",
     "axios": "^0.21.1",
     "hardhat": "^2.24.3",
     "react": "^17.0.2",
@@ -18,7 +19,8 @@
     "web3": "^1.5.0"
   },
   "devDependencies": {
-    "@babel/preset-react": "^7.14.5"
+    "@babel/preset-react": "^7.14.5",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0"
   },
   "keywords": [
     "blockchain",

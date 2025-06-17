@@ -43,6 +43,9 @@ my-asset-management-dapp
 2. Install dependencies:
    ```
    npm install
+   Those 2 werent automatically installed for some reason:
+   npm install @openzeppelin/contracts
+   npm install --save-dev @nomicfoundation/hardhat-toolbox
    ```
 
 3. Navigate to the frontend directory and install frontend dependencies:
