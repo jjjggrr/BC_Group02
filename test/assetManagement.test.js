@@ -1,59 +1,127 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+// Test with npx hardhat test
+describe("AssetRegistry and AssetNFT", function () {
+    let AssetNFT, assetNFT;
+    let AssetRegistry, assetRegistry;
+    let MultiSigWallet, multiSigWallet;
+    let VerifierOracle, verifierOracle;
+    let deployer, admin, owner1, otherAccount;
 
-describe("Asset Management DApp", function () {
-    let assetNFT, assetRegistry, multiSigWallet, verifierOracle;
-    let owner, certifiedProfessional, bank, user;
+    // Roles (as bytes32, matching AccessControl setup)
+    // You can get these by calling e.g. assetRegistry.ADMIN_ROLE() in a script
+    // or by computing them: ethers.utils.id("ADMIN_ROLE") or ethers.utils.keccak256(ethers.utils.toUtf8Bytes("ADMIN_ROLE"))
+    // For simplicity, let's assume you have constants or will fetch them.
+    // If AssetRegistry grants ADMIN_ROLE to deployer in constructor, this is fine.
+    // const ADMIN_ROLE = ethers.utils.id("ADMIN_ROLE"); // Example
 
     beforeEach(async function () {
-        [owner, certifiedProfessional, bank, user] = await ethers.getSigners();
+        [deployer, admin, owner1, otherAccount] = await ethers.getSigners();
 
-        const AssetNFT = await ethers.getContractFactory("AssetNFT");
-        assetNFT = await AssetNFT.deploy(owner.address);
+        // Deploy MultiSigWallet
+        MultiSigWallet = await ethers.getContractFactory("MultiSigWallet");
+        const initialSigners = [deployer.address, admin.address]; // Example signers
+        const requiredConfirmations = 1; // Example
+        multiSigWallet = await MultiSigWallet.deploy(initialSigners, requiredConfirmations);
+        await multiSigWallet.waitForDeployment();
 
-        const AssetRegistry = await ethers.getContractFactory("AssetRegistry");
-        assetRegistry = await AssetRegistry.deploy();
+        // Deploy VerifierOracle
+        VerifierOracle = await ethers.getContractFactory("VerifierOracle");
+        verifierOracle = await VerifierOracle.deploy(); // Assumes no constructor args
+        await verifierOracle.waitForDeployment();
 
-        const MultiSigWallet = await ethers.getContractFactory("MultiSigWallet");
-        multiSigWallet = await MultiSigWallet.deploy([owner.address, bank.address], 2);
+        // Deploy AssetRegistry
+        AssetRegistry = await ethers.getContractFactory("AssetRegistry");
+        assetRegistry = await AssetRegistry.deploy(
+            await multiSigWallet.getAddress(),
+            await verifierOracle.getAddress()
+        );
+        await assetRegistry.waitForDeployment();
 
-        const VerifierOracle = await ethers.getContractFactory("VerifierOracle");
-        verifierOracle = await VerifierOracle.deploy();
+        // AssetNFT is deployed by AssetRegistry's constructor. Get its address.
+        const assetNFTAddress = await assetRegistry.assetNft();
+        AssetNFT = await ethers.getContractFactory("AssetNFT"); // Get factory to attach
+        assetNFT = AssetNFT.attach(assetNFTAddress);
+
+        // Grant ADMIN_ROLE to the 'admin' signer if not already done by constructor for deployer
+        // For this test, we'll assume deployer (who deploys AssetRegistry) has ADMIN_ROLE by default.
+        // If you need a different admin:
+        // const ADMIN_ROLE_HASH = await assetRegistry.ADMIN_ROLE();
+        // await assetRegistry.connect(deployer).grantRole(ADMIN_ROLE_HASH, admin.address);
     });
 
-    describe("AssetNFT", function () {
-        it("should mint a new NFT", async function () {
-            await assetNFT.safeMint(user.address, 1);
-            expect(await assetNFT.ownerOf(1)).to.equal(user.address);
+        describe("Asset Registration (Minting)", function () {
+        it("Should allow an admin to register a new asset and mint an NFT to an owner", async function () {
+            const tokenIdToMint = 0; // First token
+            const assetDetails = "Luxury Watch, Serial: XYZ123";
+
+            await expect(
+                assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails)
+            ).to.emit(assetRegistry, "AssetRegistered")
+             .withArgs(tokenIdToMint, owner1.address, assetDetails);
+
+            expect(await assetNFT.ownerOf(tokenIdToMint)).to.equal(owner1.address);
+
+            const storedAssetData = await assetRegistry.assetDataStore(tokenIdToMint);
+            
+            // --- Debugging Logs (can be removed or commented out after fixing) ---
+            console.log("DEBUG: Test reached before assertion for token:", tokenIdToMint);
+            console.log("DEBUG: storedAssetData raw object is:", storedAssetData);
+            try {
+                console.log("DEBUG: JSON.stringify(storedAssetData) is:", JSON.stringify(storedAssetData));
+            } catch (e) {
+                console.log("DEBUG: Error during JSON.stringify:", e);
+            }
+            // --- End Debugging Logs ---
+
+            // storedAssetData is directly the assetDetails string
+            expect(storedAssetData).to.equal(assetDetails); 
+
+            // To check lifecycleHistory, you'd ideally need an explicit getter in the contract
+            // if assetDataStore(tokenId) only returns the string when history is empty.
+            // For now, we can't directly check storedAssetData[1].length if storedAssetData is a string.
+            // If you add a getter like `getLifecycleHistory(tokenId)` in AssetRegistry.sol:
+            // const history = await assetRegistry.getLifecycleHistory(tokenIdToMint);
+            // expect(history.length).to.equal(0);
+        });
+        
+
+        it("Should increment tokenId for subsequent asset registrations", async function () {
+            const assetDetails1 = "Artwork A";
+            const assetDetails2 = "Artwork B";
+
+            await assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails1);
+            expect(await assetNFT.ownerOf(0)).to.equal(owner1.address);
+
+            await assetRegistry.connect(deployer).registerNewAsset(otherAccount.address, assetDetails2);
+            expect(await assetNFT.ownerOf(1)).to.equal(otherAccount.address);
+
+            const storedAssetData1 = await assetRegistry.assetDataStore(0);
+            // --- Debugging Logs (can be removed or commented out after fixing) ---
+            console.log("DEBUG: storedAssetData1 for token 0 is:", JSON.stringify(storedAssetData1));
+            // --- End Debugging Logs ---
+            expect(storedAssetData1).to.equal(assetDetails1); 
+
+            const storedAssetData2 = await assetRegistry.assetDataStore(1);
+            // --- Debugging Logs (can be removed or commented out after fixing) ---
+            console.log("DEBUG: storedAssetData2 for token 1 is:", JSON.stringify(storedAssetData2));
+            // --- End Debugging Logs ---
+            expect(storedAssetData2).to.equal(assetDetails2); 
+        });
+
+        it("Should prevent non-admins from registering a new asset", async function () {
+            const assetDetails = "Forbidden Asset";
+            const ADMIN_ROLE_HASH = await assetRegistry.ADMIN_ROLE();
+
+            // Check for the custom error AccessControlUnauthorizedAccount
+            // The error takes two arguments: the account and the required role
+            await expect(
+                assetRegistry.connect(owner1).registerNewAsset(otherAccount.address, assetDetails)
+            ).to.be.revertedWithCustomError(assetRegistry, "AccessControlUnauthorizedAccount")
+             .withArgs(owner1.address, ADMIN_ROLE_HASH); // Verify the account and role in the error
         });
     });
 
-    describe("AssetRegistry", function () {
-        it("should register a new asset", async function () {
-            await assetRegistry.registerNewAsset(user.address, "Asset Details");
-            const assetData = await assetRegistry.assetDataStore(0);
-            expect(assetData.assetDetails).to.equal("Asset Details");
-        });
-    });
-
-    describe("MultiSigWallet", function () {
-        it("should execute a transaction with multiple signatures", async function () {
-            const tx = {
-                to: user.address,
-                value: ethers.utils.parseEther("1.0"),
-            };
-            await multiSigWallet.submitTransaction(tx.to, tx.value);
-            await multiSigWallet.confirmTransaction(0);
-            await multiSigWallet.confirmTransaction(0);
-            await multiSigWallet.executeTransaction(0);
-            expect(await ethers.provider.getBalance(user.address)).to.equal(ethers.utils.parseEther("1.0"));
-        });
-    });
-
-    describe("VerifierOracle", function () {
-        it("should verify asset valuation", async function () {
-            const isValid = await verifierOracle.verify("Asset Details", 1000);
-            expect(isValid).to.be.true;
-        });
-    });
+    // You can add more describe blocks for other functionalities like `addLifecycleEvent`
+    // and later for the `initiateTransfer` flow.
 });

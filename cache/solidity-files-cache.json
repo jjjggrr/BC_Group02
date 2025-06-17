@@ -647,8 +647,8 @@
       ]
     },
     "/home/jakob/VSC Projects/BC_Group02/contracts/AssetRegistry.sol": {
-      "lastModificationDate": 1750162292782,
-      "contentHash": "40eeb29f20a87f79591a4410cd6b61cb",
+      "lastModificationDate": 1750164037695,
+      "contentHash": "f48da96ec4527d311d3e0b8702dd9a85",
       "sourceName": "contracts/AssetRegistry.sol",
       "solcConfig": {
         "version": "0.8.20",

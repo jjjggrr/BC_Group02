@@ -63,10 +63,15 @@ my-asset-management-dapp
 - To start the frontend application, navigate to the `frontend` directory and run:
   ```
   npm start
+
   ```
+## Node
+Start the node
+npx hardhat node
+npx hardhat run scripts/deploy.js --network localhost
 
 ## Testing
-Run the test suite to ensure all smart contracts function as expected:
+Run the test suite to ensure all smart contracts function as expected (requires node to be deployed and hardhat to be started)
 ```
 npx hardhat test
 ```
