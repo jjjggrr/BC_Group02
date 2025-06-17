@@ -57,7 +57,7 @@ contract AssetRegistry is AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
 
-        assetNft = new AssetNFT(address(this)); // AssetRegistry owns AssetNFT
+        assetNft = new AssetNFT(address(this));
         standardMultiSigWallet = MultiSigWallet(_standardMultiSigWalletAddress);
         bankMultiSigWallet = MultiSigWallet(_bankMultiSigWalletAddress);
         verifierOracle = VerifierOracle(_verifierOracleAddress);

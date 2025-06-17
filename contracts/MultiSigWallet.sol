@@ -49,16 +49,18 @@ contract MultiSigWallet is Ownable {
         emit Deposit(msg.sender, msg.value);
     }
 
-    function createTransaction(address to, uint256 value, bytes memory data) external onlySigner {
-        uint256 transactionId = transactionCount++;
-        transactions[transactionId] = Transaction({
-            to: to,
-            value: value,
-            data: data,
-            executed: false,
-            confirmations: 0
-        });
-        emit TransactionCreated(transactionId, to, value, data);
+    function createTransaction(address to, uint256 value, bytes memory data) external {
+    // Allow either a signer or the owner of this wallet to create a transaction
+    require(isSigner[msg.sender] || msg.sender == owner(), "Not authorized to create transaction");
+    uint256 transactionId = transactionCount++;
+    transactions[transactionId] = Transaction({
+        to: to,
+        value: value,
+        data: data,
+        executed: false,
+        confirmations: 0
+    });
+    emit TransactionCreated(transactionId, to, value, data);
     }
 
     function confirmTransaction(uint256 transactionId) external onlySigner {

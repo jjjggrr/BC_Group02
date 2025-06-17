@@ -47,6 +47,8 @@ describe("AssetRegistry and AssetNFT", function () {
             HIGH_VALUE_THRESHOLD
         );
         await assetRegistry.waitForDeployment();
+        await standardMultiSigWallet.transferOwnership(await assetRegistry.getAddress());
+        await bankMultiSigWallet.transferOwnership(await assetRegistry.getAddress());
 
         // AssetNFT
         const assetNFTAddress = await assetRegistry.assetNft();

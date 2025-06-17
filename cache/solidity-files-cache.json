@@ -76,6 +76,44 @@
         "AssetNFT"
       ]
     },
+    "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/access/Ownable.sol": {
+      "lastModificationDate": 1750160844990,
+      "contentHash": "d3c790edc9ccf808a17c5a6cd13614fd",
+      "sourceName": "@openzeppelin/contracts/access/Ownable.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../utils/Context.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "Ownable"
+      ]
+    },
     "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol": {
       "lastModificationDate": 1750160844974,
       "contentHash": "a7951c81f7037d558c6d2f220b0cb38e",
@@ -118,44 +156,6 @@
       ],
       "artifacts": [
         "ERC721"
-      ]
-    },
-    "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/access/Ownable.sol": {
-      "lastModificationDate": 1750160844990,
-      "contentHash": "d3c790edc9ccf808a17c5a6cd13614fd",
-      "sourceName": "@openzeppelin/contracts/access/Ownable.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "../utils/Context.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "Ownable"
       ]
     },
     "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/utils/Context.sol": {
@@ -234,44 +234,6 @@
         "Strings"
       ]
     },
-    "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/utils/introspection/ERC165.sol": {
-      "lastModificationDate": 1750160844971,
-      "contentHash": "7c03c1e37c3dc24eafb76dc2b8a5c3a6",
-      "sourceName": "@openzeppelin/contracts/utils/introspection/ERC165.sol",
-      "solcConfig": {
-        "version": "0.8.20",
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "evmVersion": "paris",
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [
-        "./IERC165.sol"
-      ],
-      "versionPragmas": [
-        "^0.8.20"
-      ],
-      "artifacts": [
-        "ERC165"
-      ]
-    },
     "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/interfaces/draft-IERC6093.sol": {
       "lastModificationDate": 1750160844968,
       "contentHash": "267d92fe4de67b1bdb3302c08f387dbf",
@@ -308,6 +270,44 @@
         "IERC1155Errors",
         "IERC20Errors",
         "IERC721Errors"
+      ]
+    },
+    "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/utils/introspection/ERC165.sol": {
+      "lastModificationDate": 1750160844971,
+      "contentHash": "7c03c1e37c3dc24eafb76dc2b8a5c3a6",
+      "sourceName": "@openzeppelin/contracts/utils/introspection/ERC165.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC165.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ERC165"
       ]
     },
     "/home/jakob/VSC Projects/BC_Group02/node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol": {
@@ -647,8 +647,8 @@
       ]
     },
     "/home/jakob/VSC Projects/BC_Group02/contracts/AssetRegistry.sol": {
-      "lastModificationDate": 1750181655977,
-      "contentHash": "0b1296f680b23a7a5daa2c1dde7baff8",
+      "lastModificationDate": 1750182618781,
+      "contentHash": "bac4d6356cbf6f42c1981e2e3d07b842",
       "sourceName": "contracts/AssetRegistry.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -688,8 +688,8 @@
       ]
     },
     "/home/jakob/VSC Projects/BC_Group02/contracts/MultiSigWallet.sol": {
-      "lastModificationDate": 1750181658776,
-      "contentHash": "5b00b5af8f278539f5192fb20d10fa47",
+      "lastModificationDate": 1750182501835,
+      "contentHash": "44f0eff04d0e675d37d42083de39744a",
       "sourceName": "contracts/MultiSigWallet.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -726,8 +726,8 @@
       ]
     },
     "/home/jakob/VSC Projects/BC_Group02/contracts/VerifierOracle.sol": {
-      "lastModificationDate": 1750159461432,
-      "contentHash": "1f3776c77429d06af9329cb3cc676083",
+      "lastModificationDate": 1750181711509,
+      "contentHash": "c3b04b9e663fbbf931f2859cf810715a",
       "sourceName": "contracts/VerifierOracle.sol",
       "solcConfig": {
         "version": "0.8.20",
