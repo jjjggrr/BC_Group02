@@ -55,9 +55,13 @@ my-asset-management-dapp
    ```
 
 ## Usage
-- To deploy the smart contracts, run:
+- To deploy the smart contracts, navigate to the `backend` and run:
+
+  npx hardhat node
   ```
-  npx hardhat run scripts/deploy.js --network <network-name>
+  in a seperate terminal
+  ```
+  npx hardhat run scripts/deploy.js --network localhost
   ```
 
 - To start the frontend application, navigate to the `frontend` directory and run:
