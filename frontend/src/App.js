@@ -11,6 +11,7 @@ function App() {
     // --- State for Wallet and Contracts ---
     const [signer, setSigner] = useState(null);
     const [registryContract, setRegistryContract] = useState(null);
+    const [signerAddress, setSignerAddress] = useState('');
 
     // --- State for UI ---
     const [activePage, setActivePage] = useState('dashboard');
@@ -32,23 +33,32 @@ function App() {
     const [transferTokenId, setTransferTokenId] = useState('');
     const [transferToAddress, setTransferToAddress] = useState('');
 
-
-    // --- Wallet Connection ---
-    useEffect(() => {
-        const connectWallet = async () => {
-            if (window.ethereum) {
+    // --- Wallet Connection Handler ---
+    const connectWallet = async () => {
+        if (window.ethereum) {
+            try {
                 const web3Provider = new ethers.BrowserProvider(window.ethereum);
+                // Request account access
+                await web3Provider.send("eth_requestAccounts", []);
                 const web3Signer = await web3Provider.getSigner();
+                const address = await web3Signer.getAddress();
+                
                 setSigner(web3Signer);
+                setSignerAddress(address);
+                
                 const contract = new ethers.Contract(REGISTRY_ADDRESS, AssetRegistryAbi.abi, web3Signer);
                 setRegistryContract(contract);
-                addLog("Wallet Connected", `Connected as ${await web3Signer.getAddress()}`);
-            } else {
-                console.error("Please install MetaMask!");
+                
+                addLog("Wallet Connected", `Connected as ${address}`);
+            } catch (error) {
+                console.error("User rejected connection or an error occurred.", error);
+                alert("Failed to connect wallet.");
             }
-        };
-        connectWallet();
-    }, []);
+        } else {
+            alert("Please install MetaMask to use this application!");
+            console.error("Please install MetaMask!");
+        }
+    };
 
     // --- Helper to add logs to the UI ---
     const addLog = (action, details) => {
@@ -56,6 +66,7 @@ function App() {
         setLogs(prevLogs => [{ timestamp, action, details }, ...prevLogs]);
     };
 
+    // ... (keep all your other functions like fetchAssetData, handleRegisterAsset, etc. here) ...
     // Function to fetch asset data
     const fetchAssetData = async () => {
         if (registryContract && tokenId) { // Ensure tokenId is not empty
@@ -160,17 +171,55 @@ function App() {
             addLog("Error", "Transfer initiation failed.");
         }
     };
-const renderPage = () => {
-const renderPage = () => {
+
+    const renderPage = () => {
+        // ... (keep your existing renderPage function here) ...
         switch (activePage) {
-            // ... (cases for 'register', 'lifecycle', 'transfer', 'settings') ...
+            case 'register':
+                return (
+                    <main>
+                        <h1>Register New Asset</h1>
+                        <form onSubmit={handleRegisterAsset}>
+                            <input type="text" placeholder="Asset Name" value={regAssetName} onChange={e => setRegAssetName(e.target.value)} required />
+                            <input type="text" placeholder="Serial Number" value={regSerialNumber} onChange={e => setRegSerialNumber(e.target.value)} />
+                            <input type="text" placeholder="Category" value={regCategory} onChange={e => setRegCategory(e.target.value)} />
+                            <input type="text" placeholder="Location" value={regLocation} onChange={e => setRegLocation(e.target.value)} />
+                            <input type="text" placeholder="Asset Value (in ETH)" value={regValue} onChange={e => setRegValue(e.target.value)} required />
+                            <button type="submit" className="button">Register</button>
+                        </form>
+                    </main>
+                );
+            case 'lifecycle':
+                return (
+                    <main>
+                        <h1>Add Lifecycle Event</h1>
+                        <form onSubmit={handleAddEvent}>
+                            <input type="text" placeholder="Asset ID" value={eventTokenId} onChange={e => setEventTokenId(e.target.value)} required />
+                            <input type="text" placeholder="Event Type (e.g., Repair)" value={eventType} onChange={e => setEventType(e.target.value)} required />
+                            <input type="text" placeholder="Notes / Description" value={eventDescription} onChange={e => setEventDescription(e.target.value)} required />
+                            <button type="submit" className="button">Add Event</button>
+                        </form>
+                    </main>
+                );
+            case 'transfer':
+                return (
+                    <main>
+                        <h1>Transfer Ownership</h1>
+                        <form onSubmit={handleInitiateTransfer}>
+                            <input type="text" placeholder="Asset ID to Transfer" value={transferTokenId} onChange={e => setTransferTokenId(e.target.value)} required />
+                            <input type="text" placeholder="Recipient Address" value={transferToAddress} onChange={e => setTransferToAddress(e.target.value)} required />
+                            <button type="submit" className="button">Initiate Transfer</button>
+                        </form>
+                    </main>
+                );
+            case 'settings':
+                 return <main><h1>Settings</h1><p>Application preferences can be adjusted here.</p></main>;
             case 'dashboard':
             default:
                 return (
                     <main>
                         <div className="head-title"><div className="left"><h1>Dashboard</h1></div></div>
                         
-                        {/* ADD THIS SECTION TO FETCH AND DISPLAY ASSET DATA */}
                         <div className="data-fetch-box">
                             <h3>View Asset Data by ID</h3>
                             <form onSubmit={(e) => { e.preventDefault(); fetchAssetData(); }}>
@@ -215,6 +264,7 @@ const renderPage = () => {
     };
 
     const NavLink = ({ page, icon, text }) => (
+        // ... (keep your existing NavLink component here) ...
         <li className={activePage === page ? 'active' : ''}>
             <a href={`#${page}`} className="nav-link" onClick={(e) => { e.preventDefault(); setActivePage(page); }}>
                 <i className={`bx ${icon}`}></i>
@@ -226,6 +276,7 @@ const renderPage = () => {
     return (
         <>
             <section id="sidebar">
+                {/* ... (keep your existing sidebar JSX here) ... */}
                 <div className="container">
                     <div className="site-header-inner">
                         <div className="brand header-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -250,11 +301,19 @@ const renderPage = () => {
             </section>
 
             <section id="content">
-                {renderPage()}
+                {/* Conditionally render based on wallet connection */}
+                {!signer ? (
+                    <div className="wallet-connect-container">
+                        <h1>Welcome to the G2 Asset Registry</h1>
+                        <p>Please connect your wallet to continue.</p>
+                        <button className="button" onClick={connectWallet}>Connect Wallet</button>
+                    </div>
+                ) : (
+                    renderPage()
+                )}
             </section>
         </>
     );
-}
 }
 
 export default App;
