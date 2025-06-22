@@ -23,6 +23,5 @@ Thumbs.db
 *.sw?
 
 # Optional: Build outputs (if applicable)
-dist/
 build/
 coverage/
