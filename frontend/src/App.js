@@ -61,6 +61,57 @@ function App() {
         }
     };
 
+        // Add new state for owned tokens
+    const [ownedTokens, setOwnedTokens] = useState([]);
+    const [loadingTokens, setLoadingTokens] = useState(false);
+
+    // Function to fetch all tokens owned by the current user
+    const fetchOwnedTokens = async () => {
+        if (!registryContract || !signer) return;
+        
+        setLoadingTokens(true);
+        try {
+            const assetNftAddress = await registryContract.assetNft();
+            const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
+            const userAddress = await signer.getAddress();
+            
+            // Get balance of tokens owned by user
+            const balance = await assetNft.balanceOf(userAddress);
+            const tokens = [];
+            
+            // Fetch each token ID and its data
+            for (let i = 0; i < balance; i++) {
+                try {
+                    const tokenId = await assetNft.tokenOfOwnerByIndex(userAddress, i);
+                    const assetData = await registryContract.assetDataStore(tokenId);
+                    
+                    tokens.push({
+                        tokenId: tokenId.toString(),
+                        ...assetData,
+                        parsedDetails: JSON.parse(assetData.assetDetails)
+                    });
+                } catch (error) {
+                    console.error(`Error fetching token ${i}:`, error);
+                }
+            }
+            
+            setOwnedTokens(tokens);
+            addLog("Success", `Loaded ${tokens.length} owned tokens`);
+        } catch (error) {
+            console.error("Error fetching owned tokens:", error);
+            addLog("Error", "Failed to fetch owned tokens");
+        } finally {
+            setLoadingTokens(false);
+        }
+    };
+
+    // Auto-fetch tokens when wallet connects
+    useEffect(() => {
+        if (registryContract && signer) {
+            fetchOwnedTokens();
+        }
+    }, [registryContract, signer]);
+
     // --- Helper to add logs to the UI ---
     const addLog = (action, details) => {
         const timestamp = new Date().toLocaleString();
@@ -85,32 +136,63 @@ function App() {
     
     // --- Form Handlers ---
     const handleRegisterAsset = async (e) => {
-        e.preventDefault();
-        if (!registryContract || !signer) return;
+    e.preventDefault();
+    if (!registryContract || !signer) return;
 
-        const assetDetails = JSON.stringify({
-            name: regAssetName,
-            serial: regSerialNumber,
-            category: regCategory,
-            location: regLocation
-        });
-        const valueInWei = ethers.parseEther(regValue || "0");
-        const ownerAddress = await signer.getAddress();
+    const assetDetails = JSON.stringify({
+        name: regAssetName,
+        serial: regSerialNumber,
+        category: regCategory,
+        location: regLocation
+    });
+    const valueInWei = ethers.parseEther(regValue || "0");
+    const ownerAddress = await signer.getAddress();
 
-        try {
-            addLog("Registering...", `Details: ${assetDetails}`);
-            const tx = await registryContract.registerNewAsset(ownerAddress, assetDetails, valueInWei);
-            const receipt = await tx.wait();
-            const event = receipt.logs.find(log => { try { const p = registryContract.interface.parseLog(log); return p && p.name === "AssetRegistered"; } catch (e) { return false; } });
-            const newId = event ? event.args.tokenId.toString() : "N/A";
-            alert(`Asset registered successfully! New Token ID: ${newId}`);
-            addLog("Success", `Asset registered with Token ID: ${newId}`);
-        } catch (error) {
-            console.error("Registration failed:", error);
-            alert("Registration failed. Check console for details.");
-            addLog("Error", "Registration failed.");
+    try {
+        addLog("Registering...", `Details: ${assetDetails}`);
+        const tx = await registryContract.registerNewAsset(ownerAddress, assetDetails, valueInWei);
+        const receipt = await tx.wait();
+        
+        // Better event parsing - look for Transfer event from ERC721
+        let newId = "N/A";
+        for (const log of receipt.logs) {
+            try {
+                // Try parsing with AssetNFT interface for Transfer event
+                const assetNftAddress = await registryContract.assetNft();
+                const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
+                const parsedLog = assetNft.interface.parseLog(log);
+                
+                if (parsedLog && parsedLog.name === "Transfer" && parsedLog.args.from === "0x0000000000000000000000000000000000000000") {
+                    newId = parsedLog.args.tokenId.toString();
+                    break;
+                }
+            } catch (e) {
+                // Try parsing with registry interface
+                try {
+                    const parsedLog = registryContract.interface.parseLog(log);
+                    if (parsedLog && parsedLog.name === "AssetRegistered") {
+                        newId = parsedLog.args.tokenId.toString();
+                        break;
+                    }
+                } catch (e2) {
+                    continue;
+                }
+            }
         }
-    };
+        
+        alert(`Asset registered successfully! New Token ID: ${newId}`);
+        addLog("Success", `Asset registered with Token ID: ${newId}`);
+        
+        // Refresh owned tokens after registration
+        if (newId !== "N/A") {
+            await fetchOwnedTokens();
+        }
+    } catch (error) {
+        console.error("Registration failed:", error);
+        alert("Registration failed. Check console for details.");
+        addLog("Error", "Registration failed.");
+    }
+};
 
     // Function to handle form submission for adding a lifecycle event
     const handleAddEvent = async (e) => {
@@ -169,6 +251,28 @@ function App() {
             console.error("Transfer initiation failed:", error);
             alert("Transfer initiation failed. See console for details.");
             addLog("Error", "Transfer initiation failed.");
+        }
+    };
+
+    const grantRegistrarRole = async () => {
+        if (!registryContract || !signer) return;
+        
+        try {
+            const userAddress = await signer.getAddress();
+            addLog("Granting Role...", `Granting ASSET_REGISTRAR_ROLE to ${userAddress}`);
+            
+            // Get the role hash (this should match your contract)
+            const ASSET_REGISTRAR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("ASSET_REGISTRAR_ROLE"));
+            
+            const tx = await registryContract.grantRole(ASSET_REGISTRAR_ROLE, userAddress);
+            await tx.wait();
+            
+            alert("Registrar role granted successfully!");
+            addLog("Success", "ASSET_REGISTRAR_ROLE granted to your account");
+        } catch (error) {
+            console.error("Failed to grant role:", error);
+            alert("Failed to grant role. You might not be the contract owner.");
+            addLog("Error", "Failed to grant registrar role");
         }
     };
 
@@ -437,17 +541,148 @@ function App() {
             default:
                 return (
                     <main>
-                        <div className="head-title"><div className="left"><h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Dashboard</h1></div></div>
+                        <div className="head-title">
+                            <div className="left">
+                                <h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Dashboard</h1>
+                                <p style={{ color: '#ccc', fontSize: '1.1rem' }}>Connected as: {signerAddress}</p>
+                            </div>
+                        </div>
                         
+                        {/* My Assets Section */}
+                        <div className="owned-tokens-section" style={{
+                            background: '#262626',
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
+                            padding: '28px 32px',
+                            marginTop: '24px',
+                            marginBottom: '32px',
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h3 style={{
+                                    color: 'white',
+                                    fontWeight: 700,
+                                    fontSize: '1.35rem',
+                                    letterSpacing: '0.5px',
+                                    margin: 0,
+                                }}>My Assets ({ownedTokens.length})</h3>
+                                <button 
+                                    onClick={fetchOwnedTokens}
+                                    disabled={loadingTokens}
+                                    style={{
+                                        background: "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)",
+                                        color: "#fff",
+                                        border: "none",
+                                        borderRadius: "8px",
+                                        padding: "8px 16px",
+                                        fontSize: "0.9rem",
+                                        fontWeight: 600,
+                                        cursor: loadingTokens ? "not-allowed" : "pointer",
+                                        opacity: loadingTokens ? 0.6 : 1
+                                    }}
+                                >
+                                    {loadingTokens ? "Loading..." : "Refresh"}
+                                </button>
+                            </div>
+
+                            <div className="role-management-box" style={{
+                            background: '#262626',
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
+                            padding: '20px 24px',
+                            marginBottom: '32px',
+                        }}>
+                            <h3 style={{
+                                color: 'white',
+                                fontWeight: 700,
+                                fontSize: '1.1rem',
+                                letterSpacing: '0.5px',
+                                marginBottom: '10px',
+                            }}>Account Permissions</h3>
+                            <p style={{ color: '#ccc', fontSize: '0.9rem', marginBottom: '15px' }}>
+                                If you can't register assets, you might need to grant yourself the required roles.
+                            </p>
+                            <button 
+                                onClick={grantRegistrarRole}
+                                style={{
+                                    background: "linear-gradient(90deg, #ff6b35 0%, #f7931e 100%)",
+                                    color: "#fff",
+                                    border: "none",
+                                    borderRadius: "8px",
+                                    padding: "8px 16px",
+                                    fontSize: "0.9rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer"
+                                }}
+                            >
+                                Grant Registrar Role to My Account
+                            </button>
+                        </div>
+                            
+                            {loadingTokens ? (
+                                <p style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>Loading your assets...</p>
+                            ) : ownedTokens.length === 0 ? (
+                                <p style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>No assets found. Register your first asset to get started!</p>
+                            ) : (
+                                <div className="tokens-grid" style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                                    gap: '20px'
+                                }}>
+                                    {ownedTokens.map((token) => (
+                                        <div key={token.tokenId} style={{
+                                            background: '#333',
+                                            borderRadius: '10px',
+                                            border: '1.5px solid #3a3a3a',
+                                            padding: '20px',
+                                            color: 'white'
+                                        }}>
+                                            <h4 style={{
+                                                color: '#4f8cff',
+                                                fontWeight: 700,
+                                                fontSize: '1.1rem',
+                                                marginBottom: '10px',
+                                            }}>Token ID: {token.tokenId}</h4>
+                                            <div style={{ fontSize: '0.95rem', lineHeight: '1.4' }}>
+                                                <p><strong>Name:</strong> {token.parsedDetails.name}</p>
+                                                <p><strong>Category:</strong> {token.parsedDetails.category}</p>
+                                                <p><strong>Location:</strong> {token.parsedDetails.location}</p>
+                                                <p><strong>Serial:</strong> {token.parsedDetails.serial}</p>
+                                                <p><strong>Value:</strong> {ethers.formatEther(token.value)} ETH</p>
+                                                <p><strong>Events:</strong> {token.lifecycleHistory.length}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    setTokenId(token.tokenId);
+                                                    setAssetData(token);
+                                                }}
+                                                style={{
+                                                    background: "transparent",
+                                                    color: "#4f8cff",
+                                                    border: "1px solid #4f8cff",
+                                                    borderRadius: "6px",
+                                                    padding: "6px 12px",
+                                                    fontSize: "0.85rem",
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                    marginTop: "10px"
+                                                }}
+                                            >
+                                                View Details
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Keep the existing fetch by ID section but make it smaller */}
                         <div className="data-fetch-box" style={{
-    background: '#262626',
-    borderRadius: '12px',
-    boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
-    padding: '28px 32px',
-    marginTop: '36px',
-    marginBottom: '32px',
-    overflowX: 'auto',
-}}>
+                            background: '#262626',
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
+                            padding: '20px 24px',
+                            marginBottom: '32px',
+                        }}>
     <h3 style={{
         color: 'white',
         fontWeight: 700,
