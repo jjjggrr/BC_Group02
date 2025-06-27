@@ -5,26 +5,19 @@ const path = require('path');
 async function main() {
     const [deployer] = await hre.ethers.getSigners();
     
-    // Use deployer for all signers since you only have one private key
-    const anotherSigner = deployer;
-    const bankSigner = deployer;
-    
     console.log("Deploying contracts with the account:", deployer.address);
-    console.log("Another signer for Standard MultiSig:", anotherSigner.address);
-    console.log("Bank signer for Bank MultiSig:", bankSigner.address);
 
-
-        // 1a. Deploy Standard MultiSigWallet
+    // 1. Deploy MultiSigWallets first (with only deployer as signer initially)
     const MultiSigWallet = await hre.ethers.getContractFactory("MultiSigWallet");
-    const standardSigners = [deployer.address,];
-    const standardRequiredConfirmations = 1; // 1 of 1 for testing
+
+    const standardSigners = [deployer.address]; // Only deployer initially
+    const standardRequiredConfirmations = 1;
     const standardMultiSigWallet = await MultiSigWallet.deploy(standardSigners, standardRequiredConfirmations);
-    await standardMultiSigWallet.waitForDeployment(); 
+    await standardMultiSigWallet.waitForDeployment();
     console.log("Standard MultiSigWallet deployed to:", await standardMultiSigWallet.getAddress());
     
-    // 1b. Deploy Bank/High-Value MultiSigWallet
-    const bankSigners = [deployer.address];
-    const bankRequiredConfirmations = 1; // 1 of 1 for testing
+    const bankSigners = [deployer.address]; // Only deployer initially  
+    const bankRequiredConfirmations = 1;
     const bankMultiSigWallet = await MultiSigWallet.deploy(bankSigners, bankRequiredConfirmations);
     await bankMultiSigWallet.waitForDeployment();
     console.log("Bank MultiSigWallet deployed to:", await bankMultiSigWallet.getAddress());
@@ -35,8 +28,8 @@ async function main() {
     await verifierOracle.waitForDeployment();
     console.log("VerifierOracle deployed to:", await verifierOracle.getAddress());
 
-    // 3. Define High-Value Threshold (e.g., 100000 units of currency/value)
-    const highValueThreshold = hre.ethers.parseUnits("100000", "ether"); // Example: 100,000 ETH as high value, adjust as needed
+    // 3. Define High-Value Threshold
+    const highValueThreshold = hre.ethers.parseUnits("100000", "ether");
 
     // 4. Deploy AssetRegistry
     const AssetRegistry = await hre.ethers.getContractFactory("AssetRegistry");
@@ -48,13 +41,25 @@ async function main() {
     );
     await assetRegistry.waitForDeployment();
     console.log("AssetRegistry deployed to:", await assetRegistry.getAddress());
-    console.log("AssetRegistry highValueThreshold set to:", (await assetRegistry.highValueThreshold()).toString());
 
-    // 5. Get the address of AssetNFT
+    // 5. Add AssetRegistry as a signer to both MultiSigs
+    const assetRegistryAddress = await assetRegistry.getAddress();
+    
+    console.log("Adding AssetRegistry as signer to MultiSigs...");
+    
+    // Add AssetRegistry to Standard MultiSig
+    await standardMultiSigWallet.addSigner(assetRegistryAddress);
+    console.log("AssetRegistry added to Standard MultiSig");
+    
+    // Add AssetRegistry to Bank MultiSig  
+    await bankMultiSigWallet.addSigner(assetRegistryAddress);
+    console.log("AssetRegistry added to Bank MultiSig");
+
+    // 6. Get AssetNFT address
     const assetNftAddress = await assetRegistry.assetNft();
     console.log("AssetNFT (deployed by AssetRegistry) is at:", assetNftAddress);
 
-    // Save contract addresses for frontend
+    // 7. Save contract data
     const contractsData = {
         AssetRegistry: {
             address: await assetRegistry.getAddress(),
@@ -72,7 +77,6 @@ async function main() {
         }
     };
 
-    // Write to frontend directory
     const frontendDir = path.join(__dirname, '..', '..', 'frontend', 'src');
     fs.writeFileSync(
         path.join(frontendDir, 'contracts.json'),
@@ -81,15 +85,13 @@ async function main() {
 
     console.log("Contract data saved to frontend/src/contracts.json");
     console.log("Deployment complete.");
-
-    // At the end, you'll see output like:
+    
     console.log("=== DEPLOYMENT ADDRESSES ===");
     console.log("AssetRegistry deployed to:", await assetRegistry.getAddress());
     console.log("AssetNFT deployed at:", assetNftAddress);
     console.log("Standard MultiSig:", await standardMultiSigWallet.getAddress());
     console.log("Bank MultiSig:", await bankMultiSigWallet.getAddress());
 }
-
 
 main()
     .then(() => process.exit(0))

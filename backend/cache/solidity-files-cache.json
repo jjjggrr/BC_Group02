@@ -805,8 +805,8 @@
       ]
     },
     "C:\\VSC Projects\\BC_Group02\\backend\\contracts\\MultiSigWallet.sol": {
-      "lastModificationDate": 1750339109615,
-      "contentHash": "d5126d375b07cda1855a00cec666b4be",
+      "lastModificationDate": 1751047951718,
+      "contentHash": "4fdba47bd72542ad16e054b7bf5a0c03",
       "sourceName": "contracts/MultiSigWallet.sol",
       "solcConfig": {
         "version": "0.8.20",

@@ -469,6 +469,94 @@ const debugCompleteTransferFlow = async (tokenId) => {
         console.error("Complete debug error:", error);
     }
 };
+    const checkContractExistence = async () => {
+    if (!registryContract || !signer) return;
+    
+    try {
+        const standardMultiSigAddr = await registryContract.standardMultiSigWallet();
+        const bankMultiSigAddr = await registryContract.bankMultiSigWallet();
+        
+        console.log("=== CONTRACT EXISTENCE CHECK ===");
+        
+        // Check if contracts have code (exist)
+        const standardCode = await signer.provider.getCode(standardMultiSigAddr);
+        const bankCode = await signer.provider.getCode(bankMultiSigAddr);
+        
+        console.log("Standard MultiSig address:", standardMultiSigAddr);
+        console.log("Standard MultiSig has code:", standardCode !== "0x");
+        console.log("Bank MultiSig address:", bankMultiSigAddr);
+        console.log("Bank MultiSig has code:", bankCode !== "0x");
+        
+        if (standardCode === "0x") {
+            console.error("❌ Standard MultiSig contract doesn't exist!");
+        }
+        if (bankCode === "0x") {
+            console.error("❌ Bank MultiSig contract doesn't exist!");
+        }
+        
+    } catch (error) {
+        console.error("Error checking contracts:", error);
+    }
+};
+
+        const debugSignerStatus = async () => {
+        if (!registryContract || !signer) return;
+        
+        try {
+            const currentAccount = await signer.getAddress();
+            const bankMultiSigAddr = await registryContract.bankMultiSigWallet();
+            const standardMultiSigAddr = await registryContract.standardMultiSigWallet();
+            
+            console.log("=== SIGNER STATUS DEBUG ===");
+            console.log("Your account:", currentAccount);
+            
+            // Check both MultiSigs
+            const multiSigAbi = [
+                "function isSigner(address) view returns (bool)",
+                "function owner() view returns (address)",
+                "function getSigners() view returns (address[])",
+                "function requiredConfirmations() view returns (uint256)"
+            ];
+            
+            // Check Standard MultiSig
+            const standardMultiSig = new ethers.Contract(standardMultiSigAddr, multiSigAbi, signer);
+            const isStandardSigner = await standardMultiSig.isSigner(currentAccount);
+            const standardOwner = await standardMultiSig.owner();
+            const standardSigners = await standardMultiSig.getSigners();
+            const standardRequired = await standardMultiSig.requiredConfirmations();
+            
+            console.log("--- Standard MultiSig ---");
+            console.log("Address:", standardMultiSigAddr);
+            console.log("You are signer:", isStandardSigner);
+            console.log("Owner:", standardOwner);
+            console.log("All signers:", standardSigners);
+            console.log("Required confirmations:", standardRequired.toString());
+            
+            // Check Bank MultiSig
+            const bankMultiSig = new ethers.Contract(bankMultiSigAddr, multiSigAbi, signer);
+            const isBankSigner = await bankMultiSig.isSigner(currentAccount);
+            const bankOwner = await bankMultiSig.owner();
+            const bankSigners = await bankMultiSig.getSigners();
+            const bankRequired = await bankMultiSig.requiredConfirmations();
+            
+            console.log("--- Bank MultiSig ---");
+            console.log("Address:", bankMultiSigAddr);
+            console.log("You are signer:", isBankSigner);
+            console.log("Owner:", bankOwner);
+            console.log("All signers:", bankSigners);
+            console.log("Required confirmations:", bankRequired.toString());
+            
+            // Final check
+            if (!isStandardSigner && !isBankSigner) {
+                console.error("❌ You are NOT a signer on either MultiSig!");
+            } else {
+                console.log("✅ You are authorized on at least one MultiSig");
+            }
+            
+        } catch (error) {
+            console.error("Signer status debug error:", error);
+        }
+    };
     
     
     // --- Form Handlers ---
@@ -587,6 +675,8 @@ const debugCompleteTransferFlow = async (tokenId) => {
             // Debug the asset first
             await debugAssetTransfer(transferTokenId);
             await debugCompleteTransferFlow(transferTokenId);
+            await checkContractExistence();
+            await debugSignerStatus(); 
             
             // 1. Get asset data and contract addresses from AssetRegistry
             addLog("Initiating Transfer...", `Fetching data for token ${transferTokenId}`);

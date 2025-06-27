@@ -49,19 +49,41 @@ contract MultiSigWallet is Ownable {
         emit Deposit(msg.sender, msg.value);
     }
 
-    function createTransaction(address to, uint256 value, bytes memory data) external {
-    // Allow either a signer or the owner of this wallet to create a transaction
-    require(isSigner[msg.sender] || msg.sender == owner(), "Not authorized to create transaction");
-    uint256 transactionId = transactionCount++;
-    transactions[transactionId] = Transaction({
-        to: to,
-        value: value,
-        data: data,
-        executed: false,
-        confirmations: 0
-    });
-    emit TransactionCreated(transactionId, to, value, data);
+        function createTransaction(address to, uint256 value, bytes memory data) external {
+        // Allow either a signer or the owner of this wallet to create a transaction
+        require(isSigner[msg.sender] || msg.sender == owner(), "Not authorized to create transaction");
+        
+        uint256 transactionId = transactionCount++;
+        transactions[transactionId] = Transaction({
+            to: to,
+            value: value,
+            data: data,
+            executed: false,
+            confirmations: 0
+        });
+        
+        emit TransactionCreated(transactionId, to, value, data);
+        
+        // AUTO-CONFIRM: If the creator is a signer, automatically confirm
+        if (isSigner[msg.sender]) {
+            isConfirmed[transactionId][msg.sender] = true;
+            transactions[transactionId].confirmations = 1;
+            emit TransactionConfirmed(transactionId, msg.sender);
+            
+            // Execute immediately if we have enough confirmations
+            if (transactions[transactionId].confirmations >= requiredConfirmations) {
+                executeTransaction(transactionId);
+            }
+        }
     }
+
+    function addSigner(address newSigner) external onlyOwner {
+    require(newSigner != address(0), "Invalid signer");
+    require(!isSigner[newSigner], "Already a signer");
+    
+    signers.push(newSigner);
+    isSigner[newSigner] = true;
+}
 
     function confirmTransaction(uint256 transactionId) external onlySigner {
         require(transactions[transactionId].to != address(0), "Transaction does not exist");

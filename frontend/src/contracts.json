@@ -1,6 +1,6 @@
 {
   "AssetRegistry": {
-    "address": "0x229C7180B446EF69947aC0cC407eb9f96646B3f4",
+    "address": "0x4380A0d46328898b138bB38e130A5583873cD4ED",
     "abi": [
       "constructor(address,address,address,uint256)",
       "error AccessControlBadConfirmation()",
@@ -40,7 +40,7 @@
     ]
   },
   "AssetNFT": {
-    "address": "0x05f712D07833e251fE807045D0f7d5e4e44E112c",
+    "address": "0xC9A9dF64e0478AfD8116ac63699560faB87104AC",
     "abi": [
       "constructor(address)",
       "error AccessControlBadConfirmation()",
@@ -88,9 +88,9 @@
     ]
   },
   "StandardMultiSigWallet": {
-    "address": "0x4052A7e971cf284eE47b819CafA6229906C6b9d7"
+    "address": "0x222d15D701FA8876EF51a13905b18C15f597eC03"
   },
   "BankMultiSigWallet": {
-    "address": "0x126Fb4AB18E72b13Df4f05A56D60EaAa77e33474"
+    "address": "0x264E26DaA61725C1337D264A3b26CFE6ff3C54f9"
   }
 }
