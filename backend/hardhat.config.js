@@ -23,7 +23,8 @@ module.exports = {
     accounts: [
         "54d244cac4dc158d25688071453f13379629c7fba58f4976e05006c5d6121e8a", // Your main account
         "69e1e5552ac51f7f7bf732ce5d9d12fc5de72ae96dfcd85098b48fc881d86455", 
-        "6232701f0549e96dba06e12f1ec5f49ea33a58f266b506fc7c3362c84461d337"
+        "6232701f0549e96dba06e12f1ec5f49ea33a58f266b506fc7c3362c84461d337",
+        "4a55ba25fada742106d0fbd3289e724e785d45961c963b8bc7794bf92c50593a" // Your second account - used for demonstrating the transfer of tokens
     ]
 }
   },

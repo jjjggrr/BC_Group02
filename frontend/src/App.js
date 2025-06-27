@@ -331,6 +331,144 @@ function App() {
         }
     }
 };
+
+const debugAssetTransfer = async (tokenId) => {
+    if (!registryContract) return;
+    
+    try {
+        console.log("=== DEBUGGING TOKEN ===");
+        console.log("Token ID:", tokenId);
+        
+        // First check if the asset exists
+        const assetData = await registryContract.assetDataStore(tokenId);
+        console.log("Raw assetData:", assetData);
+        
+        // Check if assetData is valid and has the expected structure
+        if (!assetData || assetData.length < 4) {
+            console.error("Asset data is invalid or incomplete:", assetData);
+            return;
+        }
+        
+        // Access by index since it's a struct tuple
+        const assetDetails = assetData[0];  // string
+        const value = assetData[1];         // uint256
+        const owner = assetData[2];         // address
+        const exists = assetData[3];        // bool
+        
+        console.log("Asset exists:", exists);
+        
+        if (!exists) {
+            console.error("Asset does not exist in registry");
+            return;
+        }
+        
+        const threshold = await registryContract.highValueThreshold();
+        
+        console.log("=== ASSET VALUE DEBUG ===");
+        console.log("Token ID:", tokenId);
+        console.log("Asset value (wei):", value.toString());
+        console.log("Asset value (ETH):", ethers.formatEther(value));
+        console.log("Threshold (wei):", threshold.toString());
+        console.log("Threshold (ETH):", ethers.formatEther(threshold));
+        console.log("Is high value?", value >= threshold);
+        console.log("Should use bank MultiSig?", value > threshold);
+        console.log("========================");
+        
+        // Also check the transfer path logic
+        const standardMultiSig = await registryContract.standardMultiSigWallet();
+        const bankMultiSig = await registryContract.bankMultiSigWallet();
+        
+        console.log("Standard MultiSig:", standardMultiSig);
+        console.log("Bank MultiSig:", bankMultiSig);
+        
+    } catch (error) {
+        console.error("Debug error:", error);
+        
+        // Try to get more specific error information
+        if (error.reason) {
+            console.error("Error reason:", error.reason);
+        }
+        if (error.code) {
+            console.error("Error code:", error.code);
+        }
+    }
+};
+
+const debugCompleteTransferFlow = async (tokenId) => {
+    if (!registryContract || !signer) return;
+    
+    try {
+        console.log("=== COMPLETE TRANSFER DEBUG ===");
+        
+        // 1. Check what account MetaMask is actually using
+        const currentAccount = await signer.getAddress();
+        console.log("MetaMask Account:", currentAccount);
+        
+        // 2. Check the asset data
+        const assetData = await registryContract.assetDataStore(tokenId);
+        console.log("Asset Owner:", assetData[2]);
+        console.log("Asset Value (ETH):", ethers.formatEther(assetData[1]));
+        
+        // 3. Check threshold and which MultiSig should be used
+        const threshold = await registryContract.highValueThreshold();
+        const usesBankMultiSig = assetData[1] > threshold;
+        console.log("Uses Bank MultiSig:", usesBankMultiSig);
+        
+        // 4. Get the actual MultiSig addresses
+        const standardMultiSigAddr = await registryContract.standardMultiSigWallet();
+        const bankMultiSigAddr = await registryContract.bankMultiSigWallet();
+        console.log("Standard MultiSig:", standardMultiSigAddr);
+        console.log("Bank MultiSig:", bankMultiSigAddr);
+        
+        // 5. Check if current account is authorized on BOTH MultiSigs
+        // FIXED: Use contract ABI instead of getContractFactory
+        try {
+            // You'll need to import or define the MultiSigWallet ABI
+            // For now, let's create a minimal ABI with just the functions we need
+            const multiSigAbi = [
+                "function isOwner(address) view returns (bool)",
+                "function getOwners() view returns (address[])"
+            ];
+            
+            const standardMultiSig = new ethers.Contract(standardMultiSigAddr, multiSigAbi, signer);
+            const isStandardOwner = await standardMultiSig.isOwner(currentAccount);
+            console.log("Is owner of Standard MultiSig:", isStandardOwner);
+            
+            // Get all owners of standard MultiSig
+            const standardOwners = await standardMultiSig.getOwners();
+            console.log("Standard MultiSig owners:", standardOwners);
+        } catch (e) {
+            console.error("Error checking Standard MultiSig:", e.message);
+        }
+        
+        // Check Bank MultiSig
+        try {
+            const multiSigAbi = [
+                "function isOwner(address) view returns (bool)",
+                "function getOwners() view returns (address[])"
+            ];
+            
+            const bankMultiSig = new ethers.Contract(bankMultiSigAddr, multiSigAbi, signer);
+            const isBankOwner = await bankMultiSig.isOwner(currentAccount);
+            console.log("Is owner of Bank MultiSig:", isBankOwner);
+            
+            // Get all owners of bank MultiSig
+            const bankOwners = await bankMultiSig.getOwners();
+            console.log("Bank MultiSig owners:", bankOwners);
+        } catch (e) {
+            console.error("Error checking Bank MultiSig:", e.message);
+        }
+        
+        // 6. Check which network MetaMask is connected to
+        const network = await signer.provider.getNetwork();
+        console.log("Connected Network Chain ID:", network.chainId);
+        
+        console.log("=== END DEBUG ===");
+        
+    } catch (error) {
+        console.error("Complete debug error:", error);
+    }
+};
     
     
     // --- Form Handlers ---
@@ -433,47 +571,78 @@ function App() {
     };
 
     // --- Handler for initiating a transfer ---
-    const handleInitiateTransfer = async (e) => {
+        const handleInitiateTransfer = async (e) => {
         e.preventDefault();
         if (!registryContract || !signer) return;
-
+    
         try {
+            // Validate inputs first
+            if (!transferTokenId || !transferToAddress) {
+                alert("Please enter both Token ID and recipient address");
+                return;
+            }
+            
+            console.log("Starting transfer process for token:", transferTokenId);
+            
+            // Debug the asset first
+            await debugAssetTransfer(transferTokenId);
+            await debugCompleteTransferFlow(transferTokenId);
+            
             // 1. Get asset data and contract addresses from AssetRegistry
             addLog("Initiating Transfer...", `Fetching data for token ${transferTokenId}`);
-            const assetData = await registryContract.assetDataStore(transferTokenId);
+            
+            // FIXED: Use a different variable name to avoid conflict with state
+            const currentAssetData = await registryContract.assetDataStore(transferTokenId);
+            console.log("Asset data retrieved:", currentAssetData);
+            
+            // Check if asset exists (using the new variable name)
+            if (!currentAssetData || currentAssetData.length < 4 || !currentAssetData[3]) {
+                throw new Error(`Asset with token ID ${transferTokenId} does not exist`);
+            }
+            
             const highValueThreshold = await registryContract.highValueThreshold();
             const assetNftAddress = await registryContract.assetNft();
-
-            // 2. Determine which MultiSigWallet to use
-            let multiSigWalletAddress;
-            if (assetData.value > highValueThreshold) {
-                multiSigWalletAddress = await registryContract.bankMultiSigWallet();
-                addLog("Info", "High-value asset. Using Bank MultiSig.");
+            
+            // Use the new variable name in the comparison
+            if (currentAssetData[1] > highValueThreshold) {
+                // HIGH VALUE - Use MultiSig process
+                const multiSigWalletAddress = await registryContract.bankMultiSigWallet();
+                addLog("Info", "High-value asset. Using Bank MultiSig process.");
+                
+                // Approve MultiSig and initiate MultiSig transfer
+                const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
+                const approveTx = await assetNft.approve(multiSigWalletAddress, transferTokenId);
+                await approveTx.wait();
+                
+                const initiateTx = await registryContract.initiateTransfer(transferTokenId, transferToAddress);
+                await initiateTx.wait();
+                
             } else {
-                multiSigWalletAddress = await registryContract.standardMultiSigWallet();
-                addLog("Info", "Low-value asset. Using Standard MultiSig.");
+                // LOW VALUE - Direct transfer (no MultiSig)
+                addLog("Info", "Low-value asset. Performing direct transfer.");
+                
+                // Option A: Direct NFT transfer (if allowed)
+                const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
+                const transferTx = await assetNft.transferFrom(
+                    await signer.getAddress(), 
+                    transferToAddress, 
+                    transferTokenId
+                );
+                await transferTx.wait();
+                
+                // Option B: Or use a direct transfer function in your registry
+                // const transferTx = await registryContract.directTransfer(transferTokenId, transferToAddress);
             }
-
-            // 3. Approve the MultiSigWallet to manage the NFT
-            const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
-            addLog("Approval", `Approving MultiSig wallet for token ${transferTokenId}. Please confirm in MetaMask.`);
-            const approveTx = await assetNft.approve(multiSigWalletAddress, transferTokenId);
-            await approveTx.wait();
-            addLog("Success", "Approval successful!");
-
-            // 4. Initiate the transfer via AssetRegistry
-            addLog("Initiating", `Calling initiateTransfer for ${transferToAddress}. Please confirm in MetaMask.`);
-            const initiateTx = await registryContract.initiateTransfer(transferTokenId, transferToAddress);
-            await initiateTx.wait();
-            alert("Transfer initiated successfully! It now requires confirmations from other signers.");
-            addLog("Success", `Transfer for token ${transferTokenId} initiated.`);
-
+    
+            alert("Transfer completed successfully!");
+            
         } catch (error) {
-            console.error("Transfer initiation failed:", error);
-            alert("Transfer initiation failed. See console for details.");
-            addLog("Error", "Transfer initiation failed.");
+            console.error("Transfer failed:", error);
+            alert("Transfer failed: " + error.message);
         }
     };
+
+    
 
     const grantRegistrarRole = async () => {
         if (!registryContract || !signer) return;

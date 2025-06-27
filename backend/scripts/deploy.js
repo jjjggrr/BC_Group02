@@ -16,14 +16,14 @@ async function main() {
 
         // 1a. Deploy Standard MultiSigWallet
     const MultiSigWallet = await hre.ethers.getContractFactory("MultiSigWallet");
-    const standardSigners = [deployer.address]; // Only one signer for now
+    const standardSigners = [deployer.address,];
     const standardRequiredConfirmations = 1; // 1 of 1 for testing
     const standardMultiSigWallet = await MultiSigWallet.deploy(standardSigners, standardRequiredConfirmations);
     await standardMultiSigWallet.waitForDeployment(); 
     console.log("Standard MultiSigWallet deployed to:", await standardMultiSigWallet.getAddress());
     
     // 1b. Deploy Bank/High-Value MultiSigWallet
-    const bankSigners = [deployer.address]; // Only one signer for now
+    const bankSigners = [deployer.address];
     const bankRequiredConfirmations = 1; // 1 of 1 for testing
     const bankMultiSigWallet = await MultiSigWallet.deploy(bankSigners, bankRequiredConfirmations);
     await bankMultiSigWallet.waitForDeployment();
