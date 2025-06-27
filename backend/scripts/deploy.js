@@ -14,21 +14,20 @@ async function main() {
     console.log("Bank signer for Bank MultiSig:", bankSigner.address);
 
 
-    // 1a. Deploy Standard MultiSigWallet
+        // 1a. Deploy Standard MultiSigWallet
     const MultiSigWallet = await hre.ethers.getContractFactory("MultiSigWallet");
     const standardSigners = [deployer.address]; // Only one signer for now
     const standardRequiredConfirmations = 1; // 1 of 1 for testing
     const standardMultiSigWallet = await MultiSigWallet.deploy(standardSigners, standardRequiredConfirmations);
     await standardMultiSigWallet.waitForDeployment(); 
     console.log("Standard MultiSigWallet deployed to:", await standardMultiSigWallet.getAddress());
-
+    
     // 1b. Deploy Bank/High-Value MultiSigWallet
     const bankSigners = [deployer.address]; // Only one signer for now
     const bankRequiredConfirmations = 1; // 1 of 1 for testing
     const bankMultiSigWallet = await MultiSigWallet.deploy(bankSigners, bankRequiredConfirmations);
     await bankMultiSigWallet.waitForDeployment();
     console.log("Bank MultiSigWallet deployed to:", await bankMultiSigWallet.getAddress());
-
 
     // 2. Deploy VerifierOracle
     const VerifierOracle = await hre.ethers.getContractFactory("VerifierOracle");

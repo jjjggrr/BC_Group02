@@ -5,7 +5,7 @@ const Dashboard = ({
     ownedTokens,
     loadingTokens,
     fetchOwnedTokens,
-    grantRegistrarRole,
+    checkMyRoles={checkMyRoles},
     tokenId,
     setTokenId,
     fetchAssetData,
@@ -21,6 +21,7 @@ const Dashboard = ({
                     <p style={{ color: '#ccc', fontSize: '1.1rem' }}>Connected as: {signerAddress}</p>
                 </div>
             </div>
+            
             
             {/* My Assets Section */}
             <div className="owned-tokens-section" style={{
@@ -58,39 +59,22 @@ const Dashboard = ({
                     </button>
                 </div>
 
-                <div className="role-management-box" style={{
-                    background: '#262626',
-                    borderRadius: '12px',
-                    boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
-                    padding: '20px 24px',
-                    marginBottom: '32px',
-                }}>
-                    <h3 style={{
-                        color: 'white',
-                        fontWeight: 700,
-                        fontSize: '1.1rem',
-                        letterSpacing: '0.5px',
-                        marginBottom: '10px',
-                    }}>Account Permissions</h3>
-                    <p style={{ color: '#ccc', fontSize: '0.9rem', marginBottom: '15px' }}>
-                        If you can't register assets, you might need to grant yourself the required roles.
-                    </p>
-                    <button 
-                        onClick={grantRegistrarRole}
-                        style={{
-                            background: "linear-gradient(90deg, #ff6b35 0%, #f7931e 100%)",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "8px",
-                            padding: "8px 16px",
-                            fontSize: "0.9rem",
-                            fontWeight: 600,
-                            cursor: "pointer"
-                        }}
-                    >
-                        Grant Registrar Role to My Account
-                    </button>
-                </div>
+                <button 
+                    onClick={checkMyRoles}  // You'll need to pass this as a prop
+                    style={{
+                        background: "linear-gradient(90deg, #28a745 0%, #20c997 100%)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "8px 16px",
+                        fontSize: "0.9rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        marginLeft: "10px"
+                    }}
+                >
+                    Check My Roles
+                </button>
                 
                 {loadingTokens ? (
                     <p style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>Loading your assets...</p>

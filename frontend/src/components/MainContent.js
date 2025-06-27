@@ -12,6 +12,7 @@ const MainContent = ({
     loadingTokens,
     fetchOwnedTokens,
     grantRegistrarRole,
+    checkMyRoles,
     tokenId,
     setTokenId,
     fetchAssetData,
@@ -95,6 +96,7 @@ const MainContent = ({
                     loadingTokens={loadingTokens}
                     fetchOwnedTokens={fetchOwnedTokens}
                     grantRegistrarRole={grantRegistrarRole}
+                    checkMyRoles={checkMyRoles} 
                     tokenId={tokenId}
                     setTokenId={setTokenId}
                     fetchAssetData={fetchAssetData}

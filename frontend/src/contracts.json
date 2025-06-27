@@ -1,6 +1,6 @@
 {
   "AssetRegistry": {
-    "address": "0x3B340dc0B2511Bf13041eaE7753A3adB63c8F3cA",
+    "address": "0x35a75585005E92a80d02875d358D32708cb14fac",
     "abi": [
       "constructor(address,address,address,uint256)",
       "error AccessControlBadConfirmation()",
@@ -20,6 +20,9 @@
       "function assetDataStore(uint256) view returns (string,uint256,address,bool)",
       "function assetNft() view returns (address)",
       "function bankMultiSigWallet() view returns (address)",
+      "function getAssetDataDebug(uint256) view returns (string,uint256,address,bool,uint256)",
+      "function getLifecycleEventCount(uint256) view returns (uint256)",
+      "function getLifecycleHistory(uint256) view returns ((uint256,string,string,address)[])",
       "function getRoleAdmin(bytes32) view returns (bytes32)",
       "function grantBankRole(address)",
       "function grantCertifiedProfessionalRole(address)",
@@ -37,9 +40,12 @@
     ]
   },
   "AssetNFT": {
-    "address": "0xe92C8582F7eF8F7b825E70823364Dc19fCdE810A",
+    "address": "0xB2ecBfF1597fceed0F7Db13451C16e76bD4D8F50",
     "abi": [
       "constructor(address)",
+      "error AccessControlBadConfirmation()",
+      "error AccessControlUnauthorizedAccount(address,bytes32)",
+      "error ERC721EnumerableForbiddenBatchMint()",
       "error ERC721IncorrectOwner(address,uint256,address)",
       "error ERC721InsufficientApproval(address,uint256)",
       "error ERC721InvalidApprover(address)",
@@ -48,35 +54,43 @@
       "error ERC721InvalidReceiver(address)",
       "error ERC721InvalidSender(address)",
       "error ERC721NonexistentToken(uint256)",
-      "error OwnableInvalidOwner(address)",
-      "error OwnableUnauthorizedAccount(address)",
+      "error ERC721OutOfBoundsIndex(address,uint256)",
       "event Approval(address indexed,address indexed,uint256 indexed)",
       "event ApprovalForAll(address indexed,address indexed,bool)",
-      "event OwnershipTransferred(address indexed,address indexed)",
+      "event RoleAdminChanged(bytes32 indexed,bytes32 indexed,bytes32 indexed)",
+      "event RoleGranted(bytes32 indexed,address indexed,address indexed)",
+      "event RoleRevoked(bytes32 indexed,address indexed,address indexed)",
       "event Transfer(address indexed,address indexed,uint256 indexed)",
+      "function DEFAULT_ADMIN_ROLE() view returns (bytes32)",
+      "function MINTER_ROLE() view returns (bytes32)",
       "function approve(address,uint256)",
       "function balanceOf(address) view returns (uint256)",
       "function getApproved(uint256) view returns (address)",
+      "function getRoleAdmin(bytes32) view returns (bytes32)",
+      "function grantRole(bytes32,address)",
+      "function hasRole(bytes32,address) view returns (bool)",
       "function isApprovedForAll(address,address) view returns (bool)",
       "function name() view returns (string)",
-      "function owner() view returns (address)",
       "function ownerOf(uint256) view returns (address)",
-      "function renounceOwnership()",
+      "function renounceRole(bytes32,address)",
+      "function revokeRole(bytes32,address)",
       "function safeMint(address,uint256)",
       "function safeTransferFrom(address,address,uint256)",
       "function safeTransferFrom(address,address,uint256,bytes)",
       "function setApprovalForAll(address,bool)",
       "function supportsInterface(bytes4) view returns (bool)",
       "function symbol() view returns (string)",
+      "function tokenByIndex(uint256) view returns (uint256)",
+      "function tokenOfOwnerByIndex(address,uint256) view returns (uint256)",
       "function tokenURI(uint256) view returns (string)",
-      "function transferFrom(address,address,uint256)",
-      "function transferOwnership(address)"
+      "function totalSupply() view returns (uint256)",
+      "function transferFrom(address,address,uint256)"
     ]
   },
   "StandardMultiSigWallet": {
-    "address": "0xd818244B17060cc1B4db1a4007231a448E5E4E7E"
+    "address": "0x79F240c141341fc77622e20E6bB88eA2EA75ACEf"
   },
   "BankMultiSigWallet": {
-    "address": "0x00D1A66Ce43Bd78216453F0640086474b0d02BaA"
+    "address": "0x15150Ac386880259C3EeeB740A8162E60307b11f"
   }
 }

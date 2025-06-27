@@ -111,7 +111,14 @@ function App() {
         }
     };
 
-        // Add this function after fetchAssetData and before handleRegisterAsset
+        // Add this useEffect after your state declarations
+    useEffect(() => {
+        if (registryContract && signer) {
+            fetchOwnedTokens();
+        }
+    }, [registryContract, signer]);
+    
+        // Update the registry data parsing section in fetchOwnedTokens
     const fetchOwnedTokens = async () => {
         if (!registryContract || !signer) return;
         
@@ -136,8 +143,30 @@ function App() {
             // Loop through all owned tokens
             for (let i = 0; i < balance; i++) {
                 try {
-                    // Get token ID at index i
-                    const tokenId = await assetNft.tokenOfOwnerByIndex(address, i);
+                    let tokenId;
+                    
+                    // Try tokenOfOwnerByIndex first
+                    try {
+                        tokenId = await assetNft.tokenOfOwnerByIndex(address, i);
+                    } catch (enumerableError) {
+                        console.log("tokenOfOwnerByIndex not available, trying alternative approach");
+                        // Fallback approach - check tokens 0 through 99
+                        let found = false;
+                        for (let testId = 0; testId < 100 && !found; testId++) {
+                            try {
+                                const owner = await assetNft.ownerOf(testId);
+                                if (owner.toLowerCase() === address.toLowerCase()) {
+                                    tokenId = testId;
+                                    found = true;
+                                }
+                            } catch (e) {
+                                // Token doesn't exist, continue
+                            }
+                        }
+                        if (!found) break;
+                    }
+                    
+                    console.log(`Found token ID: ${tokenId}`);
                     
                     // Get registry data for this token
                     let registryData = null;
@@ -147,23 +176,42 @@ function App() {
                     
                     try {
                         registryData = await registryContract.assetDataStore(tokenId);
+                        console.log(`Registry data for token ${tokenId}:`, registryData);
                         
-                        // Parse asset details JSON
-                        if (registryData.assetDetails) {
+                        // FIX: Access by index instead of property names
+                        // registryData[0] = assetDetails
+                        // registryData[1] = value  
+                        // registryData[2] = owner
+                        // registryData[3] = exists
+                        
+                        if (registryData[0]) { // registryData[0] is assetDetails
                             try {
-                                parsedDetails = JSON.parse(registryData.assetDetails);
+                                parsedDetails = JSON.parse(registryData[0]);
+                                console.log(`Parsed details for token ${tokenId}:`, parsedDetails);
                             } catch (e) {
-                                parsedDetails = { name: registryData.assetDetails };
+                                console.log(`Failed to parse JSON, using as string:`, registryData[0]);
+                                parsedDetails = { name: registryData[0] };
                             }
+                        } else {
+                            console.log(`No assetDetails for token ${tokenId}`);
                         }
                         
-                        value = registryData.value || "0";
-                        lifecycleHistory = registryData.lifecycleHistory || [];
+                        value = registryData[1] || "0"; // registryData[1] is value
+                        lifecycleHistory = []; // We'll need to get this separately since it's not returned by the public mapping
                         
                     } catch (e) {
-                        console.log(`No registry data for token ${tokenId}`);
+                        console.log(`No registry data for token ${tokenId}:`, e);
                         parsedDetails = { name: 'Unknown Asset' };
                     }
+
+                    try {
+                    // Get lifecycle history for each token
+                    lifecycleHistory = await registryContract.getLifecycleHistory(tokenId);
+                    console.log(`Lifecycle history for token ${tokenId}:`, lifecycleHistory);
+                } catch (e) {
+                    console.log(`No lifecycle history for token ${tokenId}:`, e);
+                    lifecycleHistory = [];
+                }
                     
                     // Get token URI for metadata (if your NFT contract supports it)
                     let tokenURI = null;
@@ -204,62 +252,86 @@ function App() {
         const timestamp = new Date().toLocaleTimeString();
         setLogs(prevLogs => [{ timestamp, action, details }, ...prevLogs.slice(0, 49)]); // Keep last 50 logs
     };
+
+    const checkMyRoles = async () => {
+    if (!registryContract || !signer) return;
+    
+    try {
+        const userAddress = await signer.getAddress();
+        
+        const ADMIN_ROLE = ethers.keccak256(ethers.toUtf8Bytes("ADMIN_ROLE"));
+        const CERT_ROLE = ethers.keccak256(ethers.toUtf8Bytes("CERTIFIED_PROFESSIONAL_ROLE"));
+        const BANK_ROLE = ethers.keccak256(ethers.toUtf8Bytes("BANK_ROLE"));
+        
+        const hasAdmin = await registryContract.hasRole(ADMIN_ROLE, userAddress);
+        const hasCert = await registryContract.hasRole(CERT_ROLE, userAddress);
+        const hasBank = await registryContract.hasRole(BANK_ROLE, userAddress);
+        
+        console.log("=== ROLE CHECK ===");
+        console.log("User Address:", userAddress);
+        console.log("Has ADMIN_ROLE:", hasAdmin);
+        console.log("Has CERTIFIED_PROFESSIONAL_ROLE:", hasCert);
+        console.log("Has BANK_ROLE:", hasBank);
+        
+        alert(`Roles:\nADMIN: ${hasAdmin}\nCERTIFIED_PROFESSIONAL: ${hasCert}\nBANK: ${hasBank}`);
+        
+    } catch (error) {
+        console.error("Error checking roles:", error);
+    }
+};
     
     // Function to fetch asset data by token ID
     const fetchAssetData = async () => {
-        if (registryContract && tokenId) {
-            try {
-                addLog("Fetching...", `Requesting data for token ID: ${tokenId}`);
-                
-                // Get AssetNFT contract
-                const assetNftAddress = await registryContract.assetNft();
-                const assetNft = new ethers.Contract(
-                    assetNftAddress, 
-                    contractsData.AssetNFT.abi, 
-                    signer
-                );
-                
-                // Check if token exists by getting its owner
-                let owner;
-                try {
-                    owner = await assetNft.ownerOf(tokenId);
-                } catch (e) {
-                    setAssetData(null);
-                    addLog("Error", `Token ID ${tokenId} does not exist`);
-                    alert(`Token ID ${tokenId} does not exist`);
-                    return;
-                }
-                
-                // Get registry data (optional)
-                let registryData = null;
-                try {
-                    registryData = await registryContract.assetDataStore(tokenId);
-                } catch (e) {
-                    console.log("No registry data available");
-                }
-                
-                // Create asset data object
-                const assetDataObj = {
-                    tokenId: tokenId,
-                    owner: owner,
-                    assetDetails: registryData ? registryData.assetDetails : "No details available",
-                    value: registryData ? registryData.value : "0",
-                    lifecycleHistory: registryData ? registryData.lifecycleHistory : [],
-                    exists: true // We know it exists because ownerOf worked
-                };
-                
-                setAssetData(assetDataObj);
-                addLog("Success", `Found token ${tokenId}, owner: ${owner}`);
-                
-            } catch (error) {
-                console.error("Error fetching asset data:", error);
+    if (registryContract && tokenId) {
+        try {
+            addLog("Fetching...", `Requesting data for token ID: ${tokenId}`);
+            
+            const data = await registryContract.assetDataStore(tokenId);
+            
+            console.log("Raw asset data:", data);
+            
+            // Access by index instead of property names
+            const assetDetails = data[0];  // assetDetails
+            const value = data[1];         // value
+            const owner = data[2];         // owner  
+            const exists = data[3];        // exists
+            
+            // Check if asset exists
+            if (!exists) {
                 setAssetData(null);
-                addLog("Error", "Failed to fetch asset: " + error.message);
+                addLog("Error", `Asset with token ID ${tokenId} does not exist in registry`);
+                alert(`Asset with token ID ${tokenId} does not exist in registry`);
+                return;
             }
+            
+            // Get lifecycle history separately
+            let lifecycleHistory = [];
+            try {
+                lifecycleHistory = await registryContract.getLifecycleHistory(tokenId);
+                console.log("Lifecycle history:", lifecycleHistory);
+            } catch (error) {
+                console.log("No lifecycle history or error getting it:", error);
+            }
+            
+            // Create asset data object with proper structure
+            const assetDataObj = {
+                assetDetails: assetDetails,
+                value: value,
+                owner: owner,
+                exists: exists,
+                lifecycleHistory: lifecycleHistory
+            };
+            
+            setAssetData(assetDataObj);
+            addLog("Success", `Data received for token ID: ${tokenId} with ${lifecycleHistory.length} events`);
+        } catch (error) {
+            console.error("Error fetching asset data:", error);
+            setAssetData(null);
+            addLog("Error", `Failed to fetch data for token ID: ${tokenId} - ${error.message}`);
         }
-    };
+    }
+};
     
-    // Add this line to your existing fetchOwnedTokens function to parse the asset details:
     
     // --- Form Handlers ---
         const handleRegisterAsset = async (e) => {
@@ -519,6 +591,7 @@ function App() {
                             loadingTokens={loadingTokens}
                             fetchOwnedTokens={fetchOwnedTokens}
                             grantRegistrarRole={grantRegistrarRole}
+                            checkMyRoles={checkMyRoles}  // Add this line
                             tokenId={tokenId}
                             setTokenId={setTokenId}
                             fetchAssetData={fetchAssetData}

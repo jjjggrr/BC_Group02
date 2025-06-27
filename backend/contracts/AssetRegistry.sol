@@ -71,15 +71,35 @@ contract AssetRegistry is AccessControl {
     uint256 tokenId = _nextTokenId++;
     assetNft.safeMint(owner, tokenId);
     
-    // Create the AssetData struct without the lifecycleHistory array first
+    // Create the AssetData struct
     AssetData storage newAsset = assetDataStore[tokenId];
     newAsset.assetDetails = assetDetails;
     newAsset.value = value;
     newAsset.owner = owner;
     newAsset.exists = true;
-    // lifecycleHistory is automatically initialized as an empty array
     
+    // Add this for debugging - emit more detailed event
     emit AssetRegistered(tokenId, owner, assetDetails, value);
+    
+    // Optional: Add a separate debug event
+    // emit Debug("Asset stored", tokenId, assetDetails, value, owner);
+}
+
+function getAssetDataDebug(uint256 tokenId) public view returns (
+    string memory assetDetails,
+    uint256 value,
+    address owner,
+    bool exists,
+    uint256 eventsCount
+) {
+    AssetData storage asset = assetDataStore[tokenId];
+    return (
+        asset.assetDetails,
+        asset.value,
+        asset.owner,
+        asset.exists,
+        asset.lifecycleHistory.length
+    );
 }
 
     function addLifecycleEvent(uint256 tokenId, string calldata eventType, string calldata description) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
@@ -160,5 +180,15 @@ contract AssetRegistry is AccessControl {
 
     function grantBankRole(address user) public onlyRole(ADMIN_ROLE) {
         grantRole(BANK_ROLE, user);
+    }
+
+    function getLifecycleHistory(uint256 tokenId) public view returns (LifecycleEvent[] memory) {
+        require(assetDataStore[tokenId].exists, "Asset does not exist");
+        return assetDataStore[tokenId].lifecycleHistory;
+    }
+    
+    function getLifecycleEventCount(uint256 tokenId) public view returns (uint256) {
+        require(assetDataStore[tokenId].exists, "Asset does not exist");
+        return assetDataStore[tokenId].lifecycleHistory.length;
     }
 }
