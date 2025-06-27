@@ -35,7 +35,9 @@ contract AssetRegistry is AccessControl {
     struct AssetData {
         string assetDetails; // e.g., JSON string with property address, VIN, etc.
         uint256 value;       // Monetary value of the asset
+        address owner;
         LifecycleEvent[] lifecycleHistory;
+        bool exists;
     }
 
     // Mapping from tokenId to its asset data
@@ -66,26 +68,32 @@ contract AssetRegistry is AccessControl {
     }
 
     function registerNewAsset(address owner, string calldata assetDetails, uint256 value) public onlyRole(ADMIN_ROLE) {
-        uint256 tokenId = _nextTokenId++;
-        assetNft.safeMint(owner, tokenId);
-        assetDataStore[tokenId].assetDetails = assetDetails;
-        assetDataStore[tokenId].value = value;
-
-        emit AssetRegistered(tokenId, owner, assetDetails, value);
-    }
+    uint256 tokenId = _nextTokenId++;
+    assetNft.safeMint(owner, tokenId);
+    
+    // Create the AssetData struct without the lifecycleHistory array first
+    AssetData storage newAsset = assetDataStore[tokenId];
+    newAsset.assetDetails = assetDetails;
+    newAsset.value = value;
+    newAsset.owner = owner;
+    newAsset.exists = true;
+    // lifecycleHistory is automatically initialized as an empty array
+    
+    emit AssetRegistered(tokenId, owner, assetDetails, value);
+}
 
     function addLifecycleEvent(uint256 tokenId, string calldata eventType, string calldata description) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
-        require(assetDataStore[tokenId].value > 0 || keccak256(bytes(assetDataStore[tokenId].assetDetails)) != keccak256(bytes("")), "Asset does not exist or not fully registered."); // Check if asset exists
-        
-        assetDataStore[tokenId].lifecycleHistory.push(LifecycleEvent({
-            timestamp: block.timestamp,
-            eventType: eventType,
-            description: description,
-            recordedBy: msg.sender
-        }));
+    require(assetDataStore[tokenId].exists, "Asset does not exist."); // Use the exists field
+    
+    assetDataStore[tokenId].lifecycleHistory.push(LifecycleEvent({
+        timestamp: block.timestamp,
+        eventType: eventType,
+        description: description,
+        recordedBy: msg.sender
+    }));
 
-        emit LifecycleEventAdded(tokenId, eventType, description, msg.sender);
-    }
+    emit LifecycleEventAdded(tokenId, eventType, description, msg.sender);
+}
 
     /**
      * @dev Updates the estimated value of a registered asset.
@@ -93,13 +101,11 @@ contract AssetRegistry is AccessControl {
      * This is used to reflect changes in value due to damage, repairs, or market shifts.
      */
     function updateAssetValue(uint256 tokenId, uint256 newValue) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
-        // Ensure the asset exists before trying to update it.
-        require(assetDataStore[tokenId].value > 0 || keccak256(bytes(assetDataStore[tokenId].assetDetails)) != keccak256(bytes("")), "Asset does not exist or not fully registered.");
-        
-        assetDataStore[tokenId].value = newValue;
-
-        emit AssetValueUpdated(tokenId, newValue, msg.sender);
-    }
+    require(assetDataStore[tokenId].exists, "Asset does not exist."); // Use the exists field
+    
+    assetDataStore[tokenId].value = newValue;
+    emit AssetValueUpdated(tokenId, newValue, msg.sender);
+}
     
     /**
      * @dev Initiates a transfer request for an asset through the appropriate MultiSigWallet.
@@ -110,7 +116,7 @@ contract AssetRegistry is AccessControl {
         address currentOwner = assetNft.ownerOf(tokenId);
         require(currentOwner == msg.sender, "AssetRegistry: Caller is not the owner of the token.");
         require(to != address(0), "AssetRegistry: Transfer to the zero address is not allowed.");
-        require(assetDataStore[tokenId].value > 0 || keccak256(bytes(assetDataStore[tokenId].assetDetails)) != keccak256(bytes("")), "Asset not registered in AssetRegistry.");
+        require(assetDataStore[tokenId].exists, "Asset not registered in AssetRegistry."); // Use the exists field
 
 
         MultiSigWallet targetMultiSig;

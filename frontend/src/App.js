@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import contractsData from './contracts.json';
 
 // Import contract ABI (Application Binary Interface) and address after deployment
-import AssetRegistryAbi from './abi/AssetRegistry.json';
+import AssetRegistryAbi from './abi/AssetRegistry.json';    
 import AssetNFTAbi from './abi/AssetNFT.json';
 import LandingPage from "./LandingPage";
 // Make sure to replace this with the address from your local deployment
-const REGISTRY_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"; 
+const REGISTRY_ADDRESS = contractsData.AssetRegistry.address; 
 
 function App() {
     // --- State for Wallet and Contracts ---
@@ -33,33 +34,85 @@ function App() {
 
     const [transferTokenId, setTransferTokenId] = useState('');
     const [transferToAddress, setTransferToAddress] = useState('');
+    const MORPHEUS_NETWORK = {
+    chainId: '0x525', // 1317 in hex (verify this is correct for your network)
+    chainName: 'instructoruas',
+    nativeCurrency: {
+        name: 'ETH',
+        symbol: 'ETH',
+        decimals: 18
+    },
+    rpcUrls: ['http://instructoruas-28364.morpheuslabs.io'],
+    blockExplorerUrls: [''] // Add if you have a block explorer
+};
 
+    const switchToMorpheusNetwork = async () => {
+    try {
+        // Try to switch to the network
+        await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: MORPHEUS_NETWORK.chainId }],
+        });
+    } catch (switchError) {
+        // If the network doesn't exist, add it
+        if (switchError.code === 4902) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [MORPHEUS_NETWORK],
+                });
+            } catch (addError) {
+                console.error('Failed to add Morpheus network:', addError);
+                alert('Failed to add Morpheus network to MetaMask');
+            }
+        } else {
+            console.error('Failed to switch to Morpheus network:', switchError);
+            alert('Please switch to Morpheus Labs network in MetaMask');
+        }
+    }
+};
     // --- Wallet Connection Handler ---
-    const connectWallet = async () => {
+        const connectWallet = async () => {
         if (window.ethereum) {
             try {
+                // First, switch to the correct network
+                await switchToMorpheusNetwork();
+                
+                // Then connect wallet
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
                 const web3Provider = new ethers.BrowserProvider(window.ethereum);
-                // Request account access
-                await web3Provider.send("eth_requestAccounts", []);
-                const web3Signer = await web3Provider.getSigner();
-                const address = await web3Signer.getAddress();
+                const signer = await web3Provider.getSigner();
+                const address = await signer.getAddress();
                 
-                setSigner(web3Signer);
+                // Set up the registry contract
+                const registry = new ethers.Contract(
+                    REGISTRY_ADDRESS,
+                    contractsData.AssetRegistry.abi,
+                    signer
+                );
+                
+                // Update state
+                setSigner(signer);
                 setSignerAddress(address);
+                setRegistryContract(registry);
                 
-                const contract = new ethers.Contract(REGISTRY_ADDRESS, AssetRegistryAbi.abi, web3Signer);
-                setRegistryContract(contract);
+                // Add success log
+                addLog("Connected", `Wallet connected: ${address}`);
                 
-                addLog("Wallet Connected", `Connected as ${address}`);
+                console.log("Wallet connected successfully:", address);
+                console.log("Registry contract:", REGISTRY_ADDRESS);
+                
             } catch (error) {
-                console.error("User rejected connection or an error occurred.", error);
-                alert("Failed to connect wallet.");
+                console.error("Error connecting wallet:", error);
+                alert("Failed to connect wallet: " + error.message);
             }
         } else {
             alert("Please install MetaMask to use this application!");
-            console.error("Please install MetaMask!");
         }
     };
+
+    
 
         // Add new state for owned tokens
     const [ownedTokens, setOwnedTokens] = useState([]);
@@ -71,128 +124,256 @@ function App() {
         
         setLoadingTokens(true);
         try {
-            const assetNftAddress = await registryContract.assetNft();
-            const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
-            const userAddress = await signer.getAddress();
+            const address = await signer.getAddress();
             
-            // Get balance of tokens owned by user
-            const balance = await assetNft.balanceOf(userAddress);
+            // Get AssetNFT contract
+            const assetNftAddress = await registryContract.assetNft();
+            const assetNft = new ethers.Contract(
+                assetNftAddress, 
+                contractsData.AssetNFT.abi, 
+                signer
+            );
+            
+            // Get balance (number of NFTs owned)
+            const balance = await assetNft.balanceOf(address);
+            console.log(`User owns ${balance} NFTs`);
+            
             const tokens = [];
             
-            // Fetch each token ID and its data
+            // Loop through all owned tokens
             for (let i = 0; i < balance; i++) {
                 try {
-                    const tokenId = await assetNft.tokenOfOwnerByIndex(userAddress, i);
-                    const assetData = await registryContract.assetDataStore(tokenId);
+                    // Get token ID at index i
+                    const tokenId = await assetNft.tokenOfOwnerByIndex(address, i);
+                    
+                    // Get registry data for this token (optional - only if needed)
+                    let registryData = null;
+                    try {
+                        registryData = await registryContract.assetDataStore(tokenId);
+                    } catch (e) {
+                        console.log(`No registry data for token ${tokenId}`);
+                    }
+                    
+                    // Get token URI for metadata (if your NFT contract supports it)
+                    let tokenURI = null;
+                    try {
+                        tokenURI = await assetNft.tokenURI(tokenId);
+                    } catch (e) {
+                        console.log(`No tokenURI for token ${tokenId}`);
+                    }
                     
                     tokens.push({
                         tokenId: tokenId.toString(),
-                        ...assetData,
-                        parsedDetails: JSON.parse(assetData.assetDetails)
+                        owner: address,
+                        registryData: registryData,
+                        tokenURI: tokenURI
                     });
+                    
                 } catch (error) {
-                    console.error(`Error fetching token ${i}:`, error);
+                    console.error(`Error fetching token at index ${i}:`, error);
                 }
             }
             
             setOwnedTokens(tokens);
-            addLog("Success", `Loaded ${tokens.length} owned tokens`);
+            addLog("Success", `Found ${tokens.length} owned tokens`);
+            
         } catch (error) {
             console.error("Error fetching owned tokens:", error);
-            addLog("Error", "Failed to fetch owned tokens");
+            addLog("Error", "Failed to fetch owned tokens: " + error.message);
         } finally {
             setLoadingTokens(false);
         }
     };
-
-    // Auto-fetch tokens when wallet connects
-    useEffect(() => {
-        if (registryContract && signer) {
-            fetchOwnedTokens();
+    
+    // Simplified asset data fetching - just use the NFT contract
+    const fetchAssetByTokenId = async (tokenId) => {
+        if (!registryContract || !signer) return;
+        
+        try {
+            // Get AssetNFT contract
+            const assetNftAddress = await registryContract.assetNft();
+            const assetNft = new ethers.Contract(
+                assetNftAddress, 
+                contractsData.AssetNFT.abi, 
+                signer
+            );
+            
+            // Check if token exists by getting its owner
+            let owner;
+            try {
+                owner = await assetNft.ownerOf(tokenId);
+            } catch (e) {
+                alert(`Token ID ${tokenId} does not exist`);
+                return;
+            }
+            
+            // Get registry data (optional)
+            let registryData = null;
+            try {
+                registryData = await registryContract.assetDataStore(tokenId);
+            } catch (e) {
+                console.log("No registry data available");
+            }
+            
+            const assetData = {
+                tokenId: tokenId,
+                owner: owner,
+                registryData: registryData,
+                exists: true // We know it exists because ownerOf worked
+            };
+            
+            setAssetData(assetData);
+            addLog("Success", `Found token ${tokenId}, owner: ${owner}`);
+            
+        } catch (error) {
+            console.error("Error fetching asset:", error);
+            addLog("Error", "Failed to fetch asset: " + error.message);
         }
-    }, [registryContract, signer]);
-
-    // --- Helper to add logs to the UI ---
-    const addLog = (action, details) => {
-        const timestamp = new Date().toLocaleString();
-        setLogs(prevLogs => [{ timestamp, action, details }, ...prevLogs]);
     };
-
-    // Function to fetch asset data
+    
+    // --- Utility Functions ---
+    const addLog = (action, details) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setLogs(prevLogs => [{ timestamp, action, details }, ...prevLogs.slice(0, 49)]); // Keep last 50 logs
+    };
+    
+    // Function to fetch asset data by token ID
     const fetchAssetData = async () => {
-        if (registryContract && tokenId) { // Ensure tokenId is not empty
+        if (registryContract && tokenId) {
             try {
                 addLog("Fetching...", `Requesting data for token ID: ${tokenId}`);
-                const data = await registryContract.assetDataStore(tokenId);
-                setAssetData(data);
-                addLog("Success", `Data received for token ID: ${tokenId}`);
+                
+                // Get AssetNFT contract
+                const assetNftAddress = await registryContract.assetNft();
+                const assetNft = new ethers.Contract(
+                    assetNftAddress, 
+                    contractsData.AssetNFT.abi, 
+                    signer
+                );
+                
+                // Check if token exists by getting its owner
+                let owner;
+                try {
+                    owner = await assetNft.ownerOf(tokenId);
+                } catch (e) {
+                    setAssetData(null);
+                    addLog("Error", `Token ID ${tokenId} does not exist`);
+                    alert(`Token ID ${tokenId} does not exist`);
+                    return;
+                }
+                
+                // Get registry data (optional)
+                let registryData = null;
+                try {
+                    registryData = await registryContract.assetDataStore(tokenId);
+                } catch (e) {
+                    console.log("No registry data available");
+                }
+                
+                // Create asset data object
+                const assetDataObj = {
+                    tokenId: tokenId,
+                    owner: owner,
+                    assetDetails: registryData ? registryData.assetDetails : "No details available",
+                    value: registryData ? registryData.value : "0",
+                    lifecycleHistory: registryData ? registryData.lifecycleHistory : [],
+                    exists: true // We know it exists because ownerOf worked
+                };
+                
+                setAssetData(assetDataObj);
+                addLog("Success", `Found token ${tokenId}, owner: ${owner}`);
+                
             } catch (error) {
                 console.error("Error fetching asset data:", error);
                 setAssetData(null);
-                addLog("Error", `Failed to fetch data for token ID: ${tokenId}`);
+                addLog("Error", "Failed to fetch asset: " + error.message);
             }
         }
     };
     
+    // Add this line to your existing fetchOwnedTokens function to parse the asset details:
+    
     // --- Form Handlers ---
-    const handleRegisterAsset = async (e) => {
-    e.preventDefault();
-    if (!registryContract || !signer) return;
-
-    const assetDetails = JSON.stringify({
-        name: regAssetName,
-        serial: regSerialNumber,
-        category: regCategory,
-        location: regLocation
-    });
-    const valueInWei = ethers.parseEther(regValue || "0");
-    const ownerAddress = await signer.getAddress();
-
-    try {
-        addLog("Registering...", `Details: ${assetDetails}`);
-        const tx = await registryContract.registerNewAsset(ownerAddress, assetDetails, valueInWei);
-        const receipt = await tx.wait();
-        
-        // Better event parsing - look for Transfer event from ERC721
-        let newId = "N/A";
-        for (const log of receipt.logs) {
-            try {
-                // Try parsing with AssetNFT interface for Transfer event
-                const assetNftAddress = await registryContract.assetNft();
-                const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
-                const parsedLog = assetNft.interface.parseLog(log);
-                
-                if (parsedLog && parsedLog.name === "Transfer" && parsedLog.args.from === "0x0000000000000000000000000000000000000000") {
-                    newId = parsedLog.args.tokenId.toString();
-                    break;
-                }
-            } catch (e) {
-                // Try parsing with registry interface
+        const handleRegisterAsset = async (e) => {
+        e.preventDefault();
+        if (!registryContract || !signer) {
+            alert('Please connect your wallet first');
+            return;
+        }
+    
+        try {
+            // Check if we're on the correct network before transaction
+            const network = await signer.provider.getNetwork();
+            if (network.chainId !== 1317n) { // Note: using BigInt
+                await switchToMorpheusNetwork();
+                return; // Exit and let user try again after network switch
+            }
+    
+            const assetDetails = JSON.stringify({
+                name: regAssetName,
+                serial: regSerialNumber,
+                category: regCategory,
+                location: regLocation
+            });
+            const valueInWei = ethers.parseEther(regValue || "0");
+            const ownerAddress = await signer.getAddress();
+    
+            addLog("Registering...", `Details: ${assetDetails}`);
+            const tx = await registryContract.registerNewAsset(ownerAddress, assetDetails, valueInWei);
+            const receipt = await tx.wait();
+            
+            // Better event parsing - look for Transfer event from ERC721
+            let newId = "N/A";
+            for (const log of receipt.logs) {
                 try {
-                    const parsedLog = registryContract.interface.parseLog(log);
-                    if (parsedLog && parsedLog.name === "AssetRegistered") {
+                    // Try parsing with AssetNFT interface for Transfer event
+                    const assetNftAddress = await registryContract.assetNft();
+                    const assetNft = new ethers.Contract(assetNftAddress, AssetNFTAbi.abi, signer);
+                    const parsedLog = assetNft.interface.parseLog(log);
+                    
+                    if (parsedLog && parsedLog.name === "Transfer" && parsedLog.args.from === "0x0000000000000000000000000000000000000000") {
                         newId = parsedLog.args.tokenId.toString();
                         break;
                     }
-                } catch (e2) {
-                    continue;
+                } catch (e) {
+                    // Try parsing with registry interface
+                    try {
+                        const parsedLog = registryContract.interface.parseLog(log);
+                        if (parsedLog && parsedLog.name === "AssetRegistered") {
+                            newId = parsedLog.args.tokenId.toString();
+                            break;
+                        }
+                    } catch (e2) {
+                        continue;
+                    }
                 }
             }
+            
+            alert(`Asset registered successfully! New Token ID: ${newId}`);
+            addLog("Success", `Asset registered with Token ID: ${newId}`);
+            
+            // Refresh owned tokens after registration
+            if (newId !== "N/A") {
+                await fetchOwnedTokens();
+            }
+    
+            // Clear form fields after successful registration
+            setRegAssetName('');
+            setRegSerialNumber('');
+            setRegCategory('');
+            setRegLocation('');
+            setRegValue('');
+            
+        } catch (error) {
+            console.error("Error registering asset:", error);
+            if (error.code === 4001) {
+                alert("Transaction rejected by user");
+            } else {
+                alert("Error registering asset: " + error.message);
+            }
+            addLog("Error", "Failed to register asset: " + error.message);
         }
-        
-        alert(`Asset registered successfully! New Token ID: ${newId}`);
-        addLog("Success", `Asset registered with Token ID: ${newId}`);
-        
-        // Refresh owned tokens after registration
-        if (newId !== "N/A") {
-            await fetchOwnedTokens();
-        }
-    } catch (error) {
-        console.error("Registration failed:", error);
-        alert("Registration failed. Check console for details.");
-        addLog("Error", "Registration failed.");
-    }
-};
+    };
 
     // Function to handle form submission for adding a lifecycle event
     const handleAddEvent = async (e) => {

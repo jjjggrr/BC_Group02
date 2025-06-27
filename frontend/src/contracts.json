@@ -1,0 +1,82 @@
+{
+  "AssetRegistry": {
+    "address": "0x3B340dc0B2511Bf13041eaE7753A3adB63c8F3cA",
+    "abi": [
+      "constructor(address,address,address,uint256)",
+      "error AccessControlBadConfirmation()",
+      "error AccessControlUnauthorizedAccount(address,bytes32)",
+      "event AssetRegistered(uint256 indexed,address indexed,string,uint256)",
+      "event AssetValueUpdated(uint256 indexed,uint256,address indexed)",
+      "event LifecycleEventAdded(uint256 indexed,string,string,address indexed)",
+      "event RoleAdminChanged(bytes32 indexed,bytes32 indexed,bytes32 indexed)",
+      "event RoleGranted(bytes32 indexed,address indexed,address indexed)",
+      "event RoleRevoked(bytes32 indexed,address indexed,address indexed)",
+      "event TransferInitiated(uint256 indexed,address indexed,address indexed,address,uint256)",
+      "function ADMIN_ROLE() view returns (bytes32)",
+      "function BANK_ROLE() view returns (bytes32)",
+      "function CERTIFIED_PROFESSIONAL_ROLE() view returns (bytes32)",
+      "function DEFAULT_ADMIN_ROLE() view returns (bytes32)",
+      "function addLifecycleEvent(uint256,string,string)",
+      "function assetDataStore(uint256) view returns (string,uint256,address,bool)",
+      "function assetNft() view returns (address)",
+      "function bankMultiSigWallet() view returns (address)",
+      "function getRoleAdmin(bytes32) view returns (bytes32)",
+      "function grantBankRole(address)",
+      "function grantCertifiedProfessionalRole(address)",
+      "function grantRole(bytes32,address)",
+      "function hasRole(bytes32,address) view returns (bool)",
+      "function highValueThreshold() view returns (uint256)",
+      "function initiateTransfer(uint256,address)",
+      "function registerNewAsset(address,string,uint256)",
+      "function renounceRole(bytes32,address)",
+      "function revokeRole(bytes32,address)",
+      "function standardMultiSigWallet() view returns (address)",
+      "function supportsInterface(bytes4) view returns (bool)",
+      "function updateAssetValue(uint256,uint256)",
+      "function verifierOracle() view returns (address)"
+    ]
+  },
+  "AssetNFT": {
+    "address": "0xe92C8582F7eF8F7b825E70823364Dc19fCdE810A",
+    "abi": [
+      "constructor(address)",
+      "error ERC721IncorrectOwner(address,uint256,address)",
+      "error ERC721InsufficientApproval(address,uint256)",
+      "error ERC721InvalidApprover(address)",
+      "error ERC721InvalidOperator(address)",
+      "error ERC721InvalidOwner(address)",
+      "error ERC721InvalidReceiver(address)",
+      "error ERC721InvalidSender(address)",
+      "error ERC721NonexistentToken(uint256)",
+      "error OwnableInvalidOwner(address)",
+      "error OwnableUnauthorizedAccount(address)",
+      "event Approval(address indexed,address indexed,uint256 indexed)",
+      "event ApprovalForAll(address indexed,address indexed,bool)",
+      "event OwnershipTransferred(address indexed,address indexed)",
+      "event Transfer(address indexed,address indexed,uint256 indexed)",
+      "function approve(address,uint256)",
+      "function balanceOf(address) view returns (uint256)",
+      "function getApproved(uint256) view returns (address)",
+      "function isApprovedForAll(address,address) view returns (bool)",
+      "function name() view returns (string)",
+      "function owner() view returns (address)",
+      "function ownerOf(uint256) view returns (address)",
+      "function renounceOwnership()",
+      "function safeMint(address,uint256)",
+      "function safeTransferFrom(address,address,uint256)",
+      "function safeTransferFrom(address,address,uint256,bytes)",
+      "function setApprovalForAll(address,bool)",
+      "function supportsInterface(bytes4) view returns (bool)",
+      "function symbol() view returns (string)",
+      "function tokenURI(uint256) view returns (string)",
+      "function transferFrom(address,address,uint256)",
+      "function transferOwnership(address)"
+    ]
+  },
+  "StandardMultiSigWallet": {
+    "address": "0xd818244B17060cc1B4db1a4007231a448E5E4E7E"
+  },
+  "BankMultiSigWallet": {
+    "address": "0x00D1A66Ce43Bd78216453F0640086474b0d02BaA"
+  }
+}

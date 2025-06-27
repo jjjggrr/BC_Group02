@@ -4,7 +4,7 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     
     // Replace with your deployed contract address
-    const REGISTRY_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
+    const REGISTRY_ADDRESS = "0xcE61F4CdBF208B25360384D822546e5988Bd067c";
     
     // Replace with your MetaMask address
     const YOUR_METAMASK_ADDRESS = "0x9d697488e556BB41308fFa71370ae4E93F5D484C";
