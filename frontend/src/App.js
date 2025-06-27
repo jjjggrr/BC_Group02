@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import contractsData from './contracts.json';
-
-// Import contract ABI (Application Binary Interface) and address after deployment
 import AssetRegistryAbi from './abi/AssetRegistry.json';    
 import AssetNFTAbi from './abi/AssetNFT.json';
 import LandingPage from "./LandingPage";
-// Make sure to replace this with the address from your local deployment
+import MainContent from "./components/MainContent";
+
 const REGISTRY_ADDRESS = contractsData.AssetRegistry.address; 
 
 function App() {
@@ -34,70 +33,70 @@ function App() {
 
     const [transferTokenId, setTransferTokenId] = useState('');
     const [transferToAddress, setTransferToAddress] = useState('');
-    const MORPHEUS_NETWORK = {
-    chainId: '0x525', // 1317 in hex (verify this is correct for your network)
-    chainName: 'instructoruas',
-    nativeCurrency: {
-        name: 'ETH',
-        symbol: 'ETH',
-        decimals: 18
-    },
-    rpcUrls: ['http://instructoruas-28364.morpheuslabs.io'],
-    blockExplorerUrls: [''] // Add if you have a block explorer
-};
 
+    // --- State for owned tokens ---
+    const [ownedTokens, setOwnedTokens] = useState([]);
+    const [loadingTokens, setLoadingTokens] = useState(false);
+
+    // --- Network Configuration ---
+    const MORPHEUS_NETWORK = {
+        chainId: '0x525',
+        chainName: 'instructoruas',
+        nativeCurrency: {
+            name: 'ETH',
+            symbol: 'ETH',
+            decimals: 18
+        },
+        rpcUrls: ['http://instructoruas-28364.morpheuslabs.io'],
+        blockExplorerUrls: ['']
+    };
+
+    // --- Network Functions ---
     const switchToMorpheusNetwork = async () => {
-    try {
-        // Try to switch to the network
-        await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: MORPHEUS_NETWORK.chainId }],
-        });
-    } catch (switchError) {
-        // If the network doesn't exist, add it
-        if (switchError.code === 4902) {
-            try {
-                await window.ethereum.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [MORPHEUS_NETWORK],
-                });
-            } catch (addError) {
-                console.error('Failed to add Morpheus network:', addError);
-                alert('Failed to add Morpheus network to MetaMask');
+        try {
+            await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: MORPHEUS_NETWORK.chainId }],
+            });
+        } catch (switchError) {
+            if (switchError.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [MORPHEUS_NETWORK],
+                    });
+                } catch (addError) {
+                    console.error('Failed to add Morpheus network:', addError);
+                    alert('Failed to add Morpheus network to MetaMask');
+                }
+            } else {
+                console.error('Failed to switch to Morpheus network:', switchError);
+                alert('Please switch to Morpheus Labs network in MetaMask');
             }
-        } else {
-            console.error('Failed to switch to Morpheus network:', switchError);
-            alert('Please switch to Morpheus Labs network in MetaMask');
         }
-    }
-};
-    // --- Wallet Connection Handler ---
-        const connectWallet = async () => {
+    };
+
+    // --- Wallet Connection ---
+    const connectWallet = async () => {
         if (window.ethereum) {
             try {
-                // First, switch to the correct network
                 await switchToMorpheusNetwork();
-                
-                // Then connect wallet
                 await window.ethereum.request({ method: 'eth_requestAccounts' });
                 
                 const web3Provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await web3Provider.getSigner();
                 const address = await signer.getAddress();
                 
-                // Set up the registry contract
                 const registry = new ethers.Contract(
                     REGISTRY_ADDRESS,
                     contractsData.AssetRegistry.abi,
                     signer
                 );
                 
-                // Update state
                 setSigner(signer);
                 setSignerAddress(address);
                 setRegistryContract(registry);
                 
-                // Add success log
                 addLog("Connected", `Wallet connected: ${address}`);
                 
                 console.log("Wallet connected successfully:", address);
@@ -112,13 +111,7 @@ function App() {
         }
     };
 
-    
-
-        // Add new state for owned tokens
-    const [ownedTokens, setOwnedTokens] = useState([]);
-    const [loadingTokens, setLoadingTokens] = useState(false);
-
-    // Function to fetch all tokens owned by the current user
+        // Add this function after fetchAssetData and before handleRegisterAsset
     const fetchOwnedTokens = async () => {
         if (!registryContract || !signer) return;
         
@@ -146,12 +139,30 @@ function App() {
                     // Get token ID at index i
                     const tokenId = await assetNft.tokenOfOwnerByIndex(address, i);
                     
-                    // Get registry data for this token (optional - only if needed)
+                    // Get registry data for this token
                     let registryData = null;
+                    let parsedDetails = {};
+                    let value = "0";
+                    let lifecycleHistory = [];
+                    
                     try {
                         registryData = await registryContract.assetDataStore(tokenId);
+                        
+                        // Parse asset details JSON
+                        if (registryData.assetDetails) {
+                            try {
+                                parsedDetails = JSON.parse(registryData.assetDetails);
+                            } catch (e) {
+                                parsedDetails = { name: registryData.assetDetails };
+                            }
+                        }
+                        
+                        value = registryData.value || "0";
+                        lifecycleHistory = registryData.lifecycleHistory || [];
+                        
                     } catch (e) {
                         console.log(`No registry data for token ${tokenId}`);
+                        parsedDetails = { name: 'Unknown Asset' };
                     }
                     
                     // Get token URI for metadata (if your NFT contract supports it)
@@ -166,7 +177,10 @@ function App() {
                         tokenId: tokenId.toString(),
                         owner: address,
                         registryData: registryData,
-                        tokenURI: tokenURI
+                        tokenURI: tokenURI,
+                        parsedDetails: parsedDetails,
+                        value: value,
+                        lifecycleHistory: lifecycleHistory
                     });
                     
                 } catch (error) {
@@ -182,52 +196,6 @@ function App() {
             addLog("Error", "Failed to fetch owned tokens: " + error.message);
         } finally {
             setLoadingTokens(false);
-        }
-    };
-    
-    // Simplified asset data fetching - just use the NFT contract
-    const fetchAssetByTokenId = async (tokenId) => {
-        if (!registryContract || !signer) return;
-        
-        try {
-            // Get AssetNFT contract
-            const assetNftAddress = await registryContract.assetNft();
-            const assetNft = new ethers.Contract(
-                assetNftAddress, 
-                contractsData.AssetNFT.abi, 
-                signer
-            );
-            
-            // Check if token exists by getting its owner
-            let owner;
-            try {
-                owner = await assetNft.ownerOf(tokenId);
-            } catch (e) {
-                alert(`Token ID ${tokenId} does not exist`);
-                return;
-            }
-            
-            // Get registry data (optional)
-            let registryData = null;
-            try {
-                registryData = await registryContract.assetDataStore(tokenId);
-            } catch (e) {
-                console.log("No registry data available");
-            }
-            
-            const assetData = {
-                tokenId: tokenId,
-                owner: owner,
-                registryData: registryData,
-                exists: true // We know it exists because ownerOf worked
-            };
-            
-            setAssetData(assetData);
-            addLog("Success", `Found token ${tokenId}, owner: ${owner}`);
-            
-        } catch (error) {
-            console.error("Error fetching asset:", error);
-            addLog("Error", "Failed to fetch asset: " + error.message);
         }
     };
     
@@ -457,550 +425,7 @@ function App() {
         }
     };
 
-    const renderPage = () => {
-        // ... (keep your existing renderPage function here) ...
-        switch (activePage) {
-            case 'register':
-                return (
-                    <main>
-                        <h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Register New Asset</h1>
-                        <form onSubmit={handleRegisterAsset}>
-                            <input 
-                                type="text" 
-                                placeholder="Asset Name" 
-                                value={regAssetName} 
-                                onChange={e => setRegAssetName(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Serial Number" 
-                                value={regSerialNumber} 
-                                onChange={e => setRegSerialNumber(e.target.value)} 
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Category" 
-                                value={regCategory} 
-                                onChange={e => setRegCategory(e.target.value)} 
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Location" 
-                                value={regLocation} 
-                                onChange={e => setRegLocation(e.target.value)} 
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Asset Value (in ETH)" 
-                                value={regValue} 
-                                onChange={e => setRegValue(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '18px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <button type="submit" className="button" style={{
-                                background: "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)",
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: "8px",
-                                fontSize: "1rem",
-                                fontWeight: 600,
-                                marginTop: "0px",
-                                cursor: "pointer",
-                                boxShadow: "0 2px 8px rgba(79, 140, 255, 0.15)",
-                                transition: "background 0.2s, box-shadow 0.2s",
-                            }}
-                            onMouseOver={e => e.currentTarget.style.background = "linear-gradient(90deg, #3358e4 0%, #4f8cff 100%)"}
-                            onMouseOut={e => e.currentTarget.style.background = "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)"}
-                            >Register</button>
-                        </form>
-                    </main>
-                );
-            case 'lifecycle':
-                return (
-                    <main>
-                        <h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Add Lifecycle Event</h1>
-                        <form onSubmit={handleAddEvent}>
-                            <input 
-                                type="text" 
-                                placeholder="Asset ID" 
-                                value={eventTokenId} 
-                                onChange={e => setEventTokenId(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Event Type (e.g., Repair)" 
-                                value={eventType} 
-                                onChange={e => setEventType(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Notes / Description" 
-                                value={eventDescription} 
-                                onChange={e => setEventDescription(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '18px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <button type="submit" className="button" style={{
-                                background: "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)",
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: "8px",
-                                fontSize: "1rem",
-                                fontWeight: 600,
-                                marginTop: "0px",
-                                cursor: "pointer",
-                                boxShadow: "0 2px 8px rgba(79, 140, 255, 0.15)",
-                                transition: "background 0.2s, box-shadow 0.2s",
-                            }}
-                            onMouseOver={e => e.currentTarget.style.background = "linear-gradient(90deg, #3358e4 0%, #4f8cff 100%)"}
-                            onMouseOut={e => e.currentTarget.style.background = "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)"}
-                            >Add Event</button>
-                        </form>
-                    </main>
-                );
-            case 'transfer':
-                return (
-                    <main>
-                        <h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Transfer Ownership</h1>
-                        <form onSubmit={handleInitiateTransfer}>
-                            <input 
-                                type="text" 
-                                placeholder="Asset ID to Transfer" 
-                                value={transferTokenId} 
-                                onChange={e => setTransferTokenId(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '12px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <input 
-                                type="text" 
-                                placeholder="Recipient Address" 
-                                value={transferToAddress} 
-                                onChange={e => setTransferToAddress(e.target.value)} 
-                                required
-                                style={{
-                                    background: '#222',
-                                    color: 'white',
-                                    border: '1.5px solid #3a3a3a',
-                                    borderRadius: '7px',
-                                    padding: '10px 14px',
-                                    marginBottom: '18px',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    display: 'block',
-                                    width: '100%'
-                                }}
-                            />
-                            <button type="submit" className="button" style={{
-                                background: "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)",
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: "8px",
-                                fontSize: "1rem",
-                                fontWeight: 600,
-                                marginTop: "0px",
-                                cursor: "pointer",
-                                boxShadow: "0 2px 8px rgba(79, 140, 255, 0.15)",
-                                transition: "background 0.2s, box-shadow 0.2s",
-                            }}
-                            onMouseOver={e => e.currentTarget.style.background = "linear-gradient(90deg, #3358e4 0%, #4f8cff 100%)"}
-                            onMouseOut={e => e.currentTarget.style.background = "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)"}
-                            >Initiate Transfer</button>
-                        </form>
-                    </main>
-                );
-            case 'settings':
-                 return <main><h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Settings</h1><p>Imagen to adjust your application preferences here.</p></main>;
-            case 'dashboard':
-            default:
-                return (
-                    <main>
-                        <div className="head-title">
-                            <div className="left">
-                                <h1 style={{ fontSize: '2.4rem', color: '#fff', fontWeight: 700 }}>Dashboard</h1>
-                                <p style={{ color: '#ccc', fontSize: '1.1rem' }}>Connected as: {signerAddress}</p>
-                            </div>
-                        </div>
-                        
-                        {/* My Assets Section */}
-                        <div className="owned-tokens-section" style={{
-                            background: '#262626',
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
-                            padding: '28px 32px',
-                            marginTop: '24px',
-                            marginBottom: '32px',
-                        }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h3 style={{
-                                    color: 'white',
-                                    fontWeight: 700,
-                                    fontSize: '1.35rem',
-                                    letterSpacing: '0.5px',
-                                    margin: 0,
-                                }}>My Assets ({ownedTokens.length})</h3>
-                                <button 
-                                    onClick={fetchOwnedTokens}
-                                    disabled={loadingTokens}
-                                    style={{
-                                        background: "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)",
-                                        color: "#fff",
-                                        border: "none",
-                                        borderRadius: "8px",
-                                        padding: "8px 16px",
-                                        fontSize: "0.9rem",
-                                        fontWeight: 600,
-                                        cursor: loadingTokens ? "not-allowed" : "pointer",
-                                        opacity: loadingTokens ? 0.6 : 1
-                                    }}
-                                >
-                                    {loadingTokens ? "Loading..." : "Refresh"}
-                                </button>
-                            </div>
-
-                            <div className="role-management-box" style={{
-                            background: '#262626',
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
-                            padding: '20px 24px',
-                            marginBottom: '32px',
-                        }}>
-                            <h3 style={{
-                                color: 'white',
-                                fontWeight: 700,
-                                fontSize: '1.1rem',
-                                letterSpacing: '0.5px',
-                                marginBottom: '10px',
-                            }}>Account Permissions</h3>
-                            <p style={{ color: '#ccc', fontSize: '0.9rem', marginBottom: '15px' }}>
-                                If you can't register assets, you might need to grant yourself the required roles.
-                            </p>
-                            <button 
-                                onClick={grantRegistrarRole}
-                                style={{
-                                    background: "linear-gradient(90deg, #ff6b35 0%, #f7931e 100%)",
-                                    color: "#fff",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                    padding: "8px 16px",
-                                    fontSize: "0.9rem",
-                                    fontWeight: 600,
-                                    cursor: "pointer"
-                                }}
-                            >
-                                Grant Registrar Role to My Account
-                            </button>
-                        </div>
-                            
-                            {loadingTokens ? (
-                                <p style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>Loading your assets...</p>
-                            ) : ownedTokens.length === 0 ? (
-                                <p style={{ color: '#ccc', textAlign: 'center', padding: '20px' }}>No assets found. Register your first asset to get started!</p>
-                            ) : (
-                                <div className="tokens-grid" style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                                    gap: '20px'
-                                }}>
-                                    {ownedTokens.map((token) => (
-                                        <div key={token.tokenId} style={{
-                                            background: '#333',
-                                            borderRadius: '10px',
-                                            border: '1.5px solid #3a3a3a',
-                                            padding: '20px',
-                                            color: 'white'
-                                        }}>
-                                            <h4 style={{
-                                                color: '#4f8cff',
-                                                fontWeight: 700,
-                                                fontSize: '1.1rem',
-                                                marginBottom: '10px',
-                                            }}>Token ID: {token.tokenId}</h4>
-                                            <div style={{ fontSize: '0.95rem', lineHeight: '1.4' }}>
-                                                <p><strong>Name:</strong> {token.parsedDetails.name}</p>
-                                                <p><strong>Category:</strong> {token.parsedDetails.category}</p>
-                                                <p><strong>Location:</strong> {token.parsedDetails.location}</p>
-                                                <p><strong>Serial:</strong> {token.parsedDetails.serial}</p>
-                                                <p><strong>Value:</strong> {ethers.formatEther(token.value)} ETH</p>
-                                                <p><strong>Events:</strong> {token.lifecycleHistory.length}</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => {
-                                                    setTokenId(token.tokenId);
-                                                    setAssetData(token);
-                                                }}
-                                                style={{
-                                                    background: "transparent",
-                                                    color: "#4f8cff",
-                                                    border: "1px solid #4f8cff",
-                                                    borderRadius: "6px",
-                                                    padding: "6px 12px",
-                                                    fontSize: "0.85rem",
-                                                    fontWeight: 600,
-                                                    cursor: "pointer",
-                                                    marginTop: "10px"
-                                                }}
-                                            >
-                                                View Details
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        
-                        {/* Keep the existing fetch by ID section but make it smaller */}
-                        <div className="data-fetch-box" style={{
-                            background: '#262626',
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 12px rgba(44, 62, 80, 0.08)',
-                            padding: '20px 24px',
-                            marginBottom: '32px',
-                        }}>
-    <h3 style={{
-        color: 'white',
-        fontWeight: 700,
-        fontSize: '1.25rem',
-        letterSpacing: '0.5px',
-        marginBottom: '10px',
-    }}>View Asset Data by ID</h3>
-    <form onSubmit={(e) => { e.preventDefault(); fetchAssetData(); }}>
-        <input 
-            type="text" 
-            placeholder="Enter Token ID" 
-            value={tokenId} 
-            onChange={e => setTokenId(e.target.value)} 
-            style={{
-                background: '#222',
-                color: 'white',
-                border: '1.5px solid #3a3a3a',
-                borderRadius: '7px',
-                padding: '10px 14px',
-                marginRight: '10px',
-                fontSize: '1rem',
-                outline: 'none',
-            }}
-        />
-        <button 
-            type="submit" 
-            className="button"
-            style={{
-                background: "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "1rem",
-                fontWeight: 600,
-                marginTop: "0px",
-                cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(79, 140, 255, 0.15)",
-                transition: "background 0.2s, box-shadow 0.2s"
-            }}
-            onMouseOver={e => e.currentTarget.style.background = "linear-gradient(90deg, #3358e4 0%, #4f8cff 100%)"}
-            onMouseOut={e => e.currentTarget.style.background = "linear-gradient(90deg, #4f8cff 0%, #3358e4 100%)"}
-        >
-            Fetch Data
-        </button>
-    </form>
-    {assetData && (
-        <div className="asset-data-display" style={{
-            background: '#262626', // fallback for some browsers
-            backgroundColor: '#262626', // ensure both are set
-            borderRadius: '10px',
-            border: '1.5px solid #3a3a3a',
-            padding: '22px 26px',
-            marginTop: '18px',
-            marginBottom: '18px',
-            color: 'white',
-            boxShadow: '0 1px 6px rgba(44, 62, 80, 0.10)'
-        }}>
-            <h4 style={{
-                color: '#4f8cff',
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                marginBottom: '10px',
-            }}>Details for Token ID: {tokenId}</h4>
-            <pre style={{
-                background: 'transparent',
-                color: 'white',
-                fontSize: '1.05rem',
-                margin: 0,
-                padding: 0,
-                fontFamily: 'monospace',
-            }}>{JSON.stringify({
-                assetDetails: assetData.assetDetails,
-                value: ethers.formatEther(assetData.value) + ' ETH',
-                lifecycleHistoryCount: assetData.lifecycleHistory.length
-            }, null, 2)}</pre>
-        </div>
-    )}
-</div>
-
-<div className="log-box" style={{
-    background: '#262626',
-    borderRadius: '12px',
-    boxShadow: '0 2px 12px rgba(0, 128, 255, 0.08)',
-    padding: '28px 32px',
-    marginTop: '36px',
-    marginBottom: '32px',
-    overflowX: 'auto',
-}}>
-    <h3 style={{
-        color: '#3358e4',
-        fontWeight: 700,
-        fontSize: '1.35rem',
-        marginBottom: '18px',
-        letterSpacing: '0.5px',
-        color: 'white',
-    }}>Recent Logs</h3>
-    <table className="log-table" style={{
-        width: '100%',
-        borderCollapse: 'separate',
-        borderSpacing: 0,
-        fontSize: '1.05rem',
-        background: '#f8faff',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        boxShadow: '0 1px 4px rgba(44, 62, 80, 0.04)'
-    }}>
-        <thead>
-            <tr style={{ background: '#222' }}>
-                <th style={{ padding: '12px 18px', color: 'white', fontWeight: 700, textAlign: 'left', borderBottom: '2px solid #e0e7ef' }}>Timestamp</th>
-                <th style={{ padding: '12px 18px', color: 'white', fontWeight: 700, textAlign: 'left', borderBottom: '2px solid #e0e7ef' }}>Action</th>
-                <th style={{ padding: '12px 18px', color: 'white', fontWeight: 700, textAlign: 'left', borderBottom: '2px solid #e0e7ef' }}>Details</th>
-            </tr>
-        </thead>
-        <tbody>
-            {logs.length === 0 ? (
-                <tr>
-                    <td colSpan="3" style={{ textAlign: 'center', color: '#888', padding: '22px 0' }}>No logs yet.</td>
-                </tr>
-            ) : (
-                logs.map((log, index) => (
-                    <tr key={index} style={{ background: index % 2 === 0 ? '#222' : '#222' }}>
-                        <td style={{ padding: '10px 18px', color: 'white', fontFamily: 'monospace', fontSize: '0.98rem', whiteSpace: 'nowrap' }}>{log.timestamp}</td>
-                        <td style={{ padding: '10px 18px', fontWeight: 600, color: 'white' }}>{log.action}</td>
-                        <td style={{ padding: '10px 18px', color: 'white', wordBreak: 'break-word', maxWidth: '420px' }}>{log.details}</td>
-                    </tr>
-                ))
-            )}
-        </tbody>
-    </table>
-</div>
-                    </main>
-                );
-        }
-    };
-
     const NavLink = ({ page, icon, text }) => (
-        // ... (keep your existing NavLink component here) ...
         <li className={activePage === page ? 'active' : ''}>
             <a href={`#${page}`} className="nav-link" onClick={(e) => { e.preventDefault(); setActivePage(page); }}>
                 <i className={`bx ${icon}`}></i>
@@ -1031,13 +456,12 @@ function App() {
 
     return (
         <>
-            {/* Show landing page if not connected */}
             {!signer ? (
                 <LandingPage onConnect={connectWallet} />
             ) : (
                 <>
                     <section id="sidebar">
-                        {/* ... (keep your existing sidebar JSX here) ... */}
+                        {/* Keep your existing sidebar JSX */}
                         <div className="container">
                             <div className="site-header-inner">
                                 <div className="brand header-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1086,12 +510,45 @@ function App() {
                                 </button>
                             </li>
                         </ul>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '24px' }}>
-                           
-                        </div>
                     </section>
                     <section id="content">
-                        {renderPage()}
+                        <MainContent
+                            activePage={activePage}
+                            signerAddress={signerAddress}
+                            ownedTokens={ownedTokens}
+                            loadingTokens={loadingTokens}
+                            fetchOwnedTokens={fetchOwnedTokens}
+                            grantRegistrarRole={grantRegistrarRole}
+                            tokenId={tokenId}
+                            setTokenId={setTokenId}
+                            fetchAssetData={fetchAssetData}
+                            assetData={assetData}
+                            setAssetData={setAssetData}
+                            logs={logs}
+                            regAssetName={regAssetName}
+                            setRegAssetName={setRegAssetName}
+                            regSerialNumber={regSerialNumber}
+                            setRegSerialNumber={setRegSerialNumber}
+                            regCategory={regCategory}
+                            setRegCategory={setRegCategory}
+                            regLocation={regLocation}
+                            setRegLocation={setRegLocation}
+                            regValue={regValue}
+                            setRegValue={setRegValue}
+                            handleRegisterAsset={handleRegisterAsset}
+                            eventTokenId={eventTokenId}
+                            setEventTokenId={setEventTokenId}
+                            eventType={eventType}
+                            setEventType={setEventType}
+                            eventDescription={eventDescription}
+                            setEventDescription={setEventDescription}
+                            handleAddEvent={handleAddEvent}
+                            transferTokenId={transferTokenId}
+                            setTransferTokenId={setTransferTokenId}
+                            transferToAddress={transferToAddress}
+                            setTransferToAddress={setTransferToAddress}
+                            handleInitiateTransfer={handleInitiateTransfer}
+                        />
                     </section>
                 </>
             )}
