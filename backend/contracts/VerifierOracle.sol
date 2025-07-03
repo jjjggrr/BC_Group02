@@ -19,7 +19,11 @@ contract VerifierOracle {
     mapping(uint256 => AssetValuation) public valuations;
 
     // Event emitted when a new valuation is submitted
-    event ValuationSubmitted(uint256 indexed assetId, uint256 valuation, address indexed verifier);
+    event ValuationSubmitted(
+        uint256 indexed assetId,
+        uint256 valuation,
+        address indexed verifier
+    );
 
     /**
      * @dev Submits a new asset valuation.
@@ -43,7 +47,9 @@ contract VerifierOracle {
     /**
      * @dev Retrieves the valuation for a specific asset.
      */
-    function getValuation(uint256 assetId) external view returns (AssetValuation memory) {
+    function getValuation(
+        uint256 assetId
+    ) external view returns (AssetValuation memory) {
         return valuations[assetId];
     }
 }

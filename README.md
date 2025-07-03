@@ -61,7 +61,8 @@ my-asset-management-dapp
   ```
   in a seperate terminal
   ```
-  npx hardhat run scripts/deploy.js --network localhost
+  npx hardhat run scripts/deploy.js --network morpheus
+  npx hardhat run scripts/grantRoles.js --network morpheus
   ```
 
 - To start the frontend application, navigate to the `frontend` directory and run:

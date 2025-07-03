@@ -60,11 +60,11 @@ describe("AssetRegistry and AssetNFT", function () {
         it("Should allow an admin to register a new asset (low value) and mint an NFT to an owner", async function () {
             const tokenIdToMint = 0;
             const assetDetails = "Luxury Watch, Serial: XYZ123";
-            
+
             await expect(
                 assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails, LOW_VALUE)
             ).to.emit(assetRegistry, "AssetRegistered")
-             .withArgs(tokenIdToMint, owner1.address, assetDetails, LOW_VALUE);
+                .withArgs(tokenIdToMint, owner1.address, assetDetails, LOW_VALUE);
 
             expect(await assetNFT.ownerOf(tokenIdToMint)).to.equal(owner1.address);
 
@@ -76,11 +76,11 @@ describe("AssetRegistry and AssetNFT", function () {
         it("Should allow an admin to register a new asset (high value) and mint an NFT to an owner", async function () {
             const tokenIdToMint = 0; // First token in this test context
             const assetDetails = "Rare Painting, ID: P789";
-            
+
             await expect(
                 assetRegistry.connect(deployer).registerNewAsset(owner1.address, assetDetails, HIGH_VALUE)
             ).to.emit(assetRegistry, "AssetRegistered")
-             .withArgs(tokenIdToMint, owner1.address, assetDetails, HIGH_VALUE);
+                .withArgs(tokenIdToMint, owner1.address, assetDetails, HIGH_VALUE);
 
             expect(await assetNFT.ownerOf(tokenIdToMint)).to.equal(owner1.address);
             const storedAssetData = await assetRegistry.assetDataStore(tokenIdToMint);
@@ -116,7 +116,7 @@ describe("AssetRegistry and AssetNFT", function () {
             await expect(
                 assetRegistry.connect(owner1).registerNewAsset(otherAccount.address, assetDetails, LOW_VALUE)
             ).to.be.revertedWithCustomError(assetRegistry, "AccessControlUnauthorizedAccount")
-             .withArgs(owner1.address, ADMIN_ROLE_HASH);
+                .withArgs(owner1.address, ADMIN_ROLE_HASH);
         });
     });
 
@@ -126,7 +126,7 @@ describe("AssetRegistry and AssetNFT", function () {
         let tokenIdToTransfer;
         const initialAssetDetails = "Direct Transfer Watch";
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             const tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, initialAssetDetails, LOW_VALUE); // Register with a value
             const receipt = await tx.wait();
             const event = receipt.logs.find(log => {
@@ -135,7 +135,7 @@ describe("AssetRegistry and AssetNFT", function () {
                     return parsedLog && parsedLog.name === "AssetRegistered";
                 } catch (error) { return false; }
             });
-            if (event) { tokenIdToTransfer = event.args.tokenId; } 
+            if (event) { tokenIdToTransfer = event.args.tokenId; }
             else { throw new Error("AssetRegistered event not found for direct transfer test setup."); }
         });
 
@@ -144,7 +144,7 @@ describe("AssetRegistry and AssetNFT", function () {
             await expect(
                 assetNFT.connect(owner1).safeTransferFrom(owner1.address, otherAccount.address, tokenIdToTransfer)
             ).to.emit(assetNFT, "Transfer")
-             .withArgs(owner1.address, otherAccount.address, tokenIdToTransfer);
+                .withArgs(owner1.address, otherAccount.address, tokenIdToTransfer);
             expect(await assetNFT.ownerOf(tokenIdToTransfer)).to.equal(otherAccount.address);
         });
 
@@ -152,7 +152,7 @@ describe("AssetRegistry and AssetNFT", function () {
             await expect(
                 assetNFT.connect(deployer).safeTransferFrom(owner1.address, otherAccount.address, tokenIdToTransfer)
             ).to.be.revertedWithCustomError(assetNFT, "ERC721InsufficientApproval")
-             .withArgs(deployer.address, tokenIdToTransfer);
+                .withArgs(deployer.address, tokenIdToTransfer);
         });
 
         it("Should prevent transferring a non-existent NFT directly", async function () {
@@ -160,7 +160,7 @@ describe("AssetRegistry and AssetNFT", function () {
             await expect(
                 assetNFT.connect(owner1).safeTransferFrom(owner1.address, otherAccount.address, nonExistentTokenId)
             ).to.be.revertedWithCustomError(assetNFT, "ERC721NonexistentToken")
-             .withArgs(nonExistentTokenId);
+                .withArgs(nonExistentTokenId);
         });
     });
 
@@ -169,7 +169,7 @@ describe("AssetRegistry and AssetNFT", function () {
         let lowValueTokenId;
         let highValueTokenId;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             // Register a low-value asset to owner1
             let tx = await assetRegistry.connect(deployer).registerNewAsset(owner1.address, "LowValueCar", LOW_VALUE);
             let receipt = await tx.wait();
@@ -243,7 +243,7 @@ describe("AssetRegistry and AssetNFT", function () {
         const initialValue = ethers.parseUnits("50000", "ether"); // e.g., $50,000
         let certifiedProfessional;
 
-        beforeEach(async function() {
+        beforeEach(async function () {
             // Use 'anotherSignerAccount' as our certified professional for this test
             certifiedProfessional = anotherSignerAccount;
 
@@ -259,7 +259,7 @@ describe("AssetRegistry and AssetNFT", function () {
 
         it("Should allow a certified professional to update an asset's value", async function () {
             const newValue = ethers.parseUnits("20000", "ether"); // Value reduced after an "accident"
-            
+
             await expect(assetRegistry.connect(certifiedProfessional).updateAssetValue(assetId, newValue))
                 .to.emit(assetRegistry, "AssetValueUpdated")
                 .withArgs(assetId, newValue, certifiedProfessional.address);
@@ -276,7 +276,7 @@ describe("AssetRegistry and AssetNFT", function () {
             await expect(
                 assetRegistry.connect(owner1).updateAssetValue(assetId, newValue)
             ).to.be.revertedWithCustomError(assetRegistry, "AccessControlUnauthorizedAccount")
-             .withArgs(owner1.address, CERTIFIED_PROFESSIONAL_ROLE_HASH);
+                .withArgs(owner1.address, CERTIFIED_PROFESSIONAL_ROLE_HASH);
         });
 
         it("Should prevent updating the value of a non-existent asset", async function () {
@@ -285,7 +285,7 @@ describe("AssetRegistry and AssetNFT", function () {
 
             await expect(
                 assetRegistry.connect(certifiedProfessional).updateAssetValue(nonExistentTokenId, newValue)
-            ).to.be.revertedWith("Asset does not exist or not fully registered.");
+            ).to.be.revertedWith("Asset does not exist."); // ← Update this message
         });
     });
 });

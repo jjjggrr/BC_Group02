@@ -24,17 +24,17 @@ contract AssetNFT is ERC721Enumerable, AccessControl {
      * Can only be called by addresses with MINTER_ROLE (AssetRegistry).
      * The tokenId is passed as an argument.
      */
-    function safeMint(address to, uint256 tokenId) public onlyRole(MINTER_ROLE) {
+    function safeMint(
+        address to,
+        uint256 tokenId
+    ) public onlyRole(MINTER_ROLE) {
         _safeMint(to, tokenId);
     }
 
     // Required override for ERC721Enumerable
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721Enumerable, AccessControl)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721Enumerable, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }

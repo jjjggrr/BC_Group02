@@ -12,7 +12,8 @@ import "./VerifierOracle.sol";
  */
 contract AssetRegistry is AccessControl {
     // Role definitions
-    bytes32 public constant CERTIFIED_PROFESSIONAL_ROLE = keccak256("CERTIFIED_PROFESSIONAL_ROLE");
+    bytes32 public constant CERTIFIED_PROFESSIONAL_ROLE =
+        keccak256("CERTIFIED_PROFESSIONAL_ROLE");
     bytes32 public constant BANK_ROLE = keccak256("BANK_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -34,7 +35,7 @@ contract AssetRegistry is AccessControl {
     // Struct to hold all data for a specific asset
     struct AssetData {
         string assetDetails; // e.g., JSON string with property address, VIN, etc.
-        uint256 value;       // Monetary value of the asset
+        uint256 value; // Monetary value of the asset
         address owner;
         LifecycleEvent[] lifecycleHistory;
         bool exists;
@@ -46,10 +47,30 @@ contract AssetRegistry is AccessControl {
     // Counter for issuing new tokenIds
     uint256 private _nextTokenId;
 
-    event AssetRegistered(uint256 indexed tokenId, address indexed owner, string assetDetails, uint256 value);
-    event LifecycleEventAdded(uint256 indexed tokenId, string eventType, string description, address indexed recordedBy);
-    event TransferInitiated(uint256 indexed tokenId, address indexed from, address indexed to, address multiSigWalletUsed, uint256 multiSigTxId);
-    event AssetValueUpdated(uint256 indexed tokenId, uint256 newValue, address indexed updatedBy); // New Event
+    event AssetRegistered(
+        uint256 indexed tokenId,
+        address indexed owner,
+        string assetDetails,
+        uint256 value
+    );
+    event LifecycleEventAdded(
+        uint256 indexed tokenId,
+        string eventType,
+        string description,
+        address indexed recordedBy
+    );
+    event TransferInitiated(
+        uint256 indexed tokenId,
+        address indexed from,
+        address indexed to,
+        address multiSigWalletUsed,
+        uint256 multiSigTxId
+    );
+    event AssetValueUpdated(
+        uint256 indexed tokenId,
+        uint256 newValue,
+        address indexed updatedBy
+    ); // New Event
 
     constructor(
         address _standardMultiSigWalletAddress,
@@ -67,66 +88,85 @@ contract AssetRegistry is AccessControl {
         highValueThreshold = _highValueThreshold;
     }
 
-    function registerNewAsset(address owner, string calldata assetDetails, uint256 value) public onlyRole(ADMIN_ROLE) {
-    uint256 tokenId = _nextTokenId++;
-    assetNft.safeMint(owner, tokenId);
-    
-    // Create the AssetData struct
-    AssetData storage newAsset = assetDataStore[tokenId];
-    newAsset.assetDetails = assetDetails;
-    newAsset.value = value;
-    newAsset.owner = owner;
-    newAsset.exists = true;
-    
-    // Add this for debugging - emit more detailed event
-    emit AssetRegistered(tokenId, owner, assetDetails, value);
-    
-    // Optional: Add a separate debug event
-    // emit Debug("Asset stored", tokenId, assetDetails, value, owner);
-}
+    function registerNewAsset(
+        address owner,
+        string calldata assetDetails,
+        uint256 value
+    ) public onlyRole(ADMIN_ROLE) {
+        uint256 tokenId = _nextTokenId++;
+        assetNft.safeMint(owner, tokenId);
 
-function getAssetDataDebug(uint256 tokenId) public view returns (
-    string memory assetDetails,
-    uint256 value,
-    address owner,
-    bool exists,
-    uint256 eventsCount
-) {
-    AssetData storage asset = assetDataStore[tokenId];
-    return (
-        asset.assetDetails,
-        asset.value,
-        asset.owner,
-        asset.exists,
-        asset.lifecycleHistory.length
-    );
-}
+        // Create the AssetData struct
+        AssetData storage newAsset = assetDataStore[tokenId];
+        newAsset.assetDetails = assetDetails;
+        newAsset.value = value;
+        newAsset.owner = owner;
+        newAsset.exists = true;
 
-    function addLifecycleEvent(uint256 tokenId, string calldata eventType, string calldata description) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
-    require(assetDataStore[tokenId].exists, "Asset does not exist."); // Use the exists field
-    
-    assetDataStore[tokenId].lifecycleHistory.push(LifecycleEvent({
-        timestamp: block.timestamp,
-        eventType: eventType,
-        description: description,
-        recordedBy: msg.sender
-    }));
+        // Add this for debugging - emit more detailed event
+        emit AssetRegistered(tokenId, owner, assetDetails, value);
 
-    emit LifecycleEventAdded(tokenId, eventType, description, msg.sender);
-}
+        // Optional: Add a separate debug event
+        // emit Debug("Asset stored", tokenId, assetDetails, value, owner);
+    }
+
+    function getAssetDataDebug(
+        uint256 tokenId
+    )
+        public
+        view
+        returns (
+            string memory assetDetails,
+            uint256 value,
+            address owner,
+            bool exists,
+            uint256 eventsCount
+        )
+    {
+        AssetData storage asset = assetDataStore[tokenId];
+        return (
+            asset.assetDetails,
+            asset.value,
+            asset.owner,
+            asset.exists,
+            asset.lifecycleHistory.length
+        );
+    }
+
+    function addLifecycleEvent(
+        uint256 tokenId,
+        string calldata eventType,
+        string calldata description
+    ) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
+        require(assetDataStore[tokenId].exists, "Asset does not exist."); // Use the exists field
+
+        assetDataStore[tokenId].lifecycleHistory.push(
+            LifecycleEvent({
+                timestamp: block.timestamp,
+                eventType: eventType,
+                description: description,
+                recordedBy: msg.sender
+            })
+        );
+
+        emit LifecycleEventAdded(tokenId, eventType, description, msg.sender);
+    }
 
     /**
      * @dev Updates the estimated value of a registered asset.
      * Can only be called by a user with the CERTIFIED_PROFESSIONAL_ROLE.
      * This is used to reflect changes in value due to damage, repairs, or market shifts.
      */
-    function updateAssetValue(uint256 tokenId, uint256 newValue) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
-    require(assetDataStore[tokenId].exists, "Asset does not exist."); // Use the exists field
-    
-    assetDataStore[tokenId].value = newValue;
-    emit AssetValueUpdated(tokenId, newValue, msg.sender);
-}
-    
+    function updateAssetValue(
+        uint256 tokenId,
+        uint256 newValue
+    ) public onlyRole(CERTIFIED_PROFESSIONAL_ROLE) {
+        require(assetDataStore[tokenId].exists, "Asset does not exist."); // Use the exists field
+
+        assetDataStore[tokenId].value = newValue;
+        emit AssetValueUpdated(tokenId, newValue, msg.sender);
+    }
+
     /**
      * @dev Initiates a transfer request for an asset through the appropriate MultiSigWallet.
      * The caller (owner of the NFT) must first approve the chosen MultiSigWallet
@@ -134,10 +174,18 @@ function getAssetDataDebug(uint256 tokenId) public view returns (
      */
     function initiateTransfer(uint256 tokenId, address to) external {
         address currentOwner = assetNft.ownerOf(tokenId);
-        require(currentOwner == msg.sender, "AssetRegistry: Caller is not the owner of the token.");
-        require(to != address(0), "AssetRegistry: Transfer to the zero address is not allowed.");
-        require(assetDataStore[tokenId].exists, "Asset not registered in AssetRegistry."); // Use the exists field
-
+        require(
+            currentOwner == msg.sender,
+            "AssetRegistry: Caller is not the owner of the token."
+        );
+        require(
+            to != address(0),
+            "AssetRegistry: Transfer to the zero address is not allowed."
+        );
+        require(
+            assetDataStore[tokenId].exists,
+            "Asset not registered in AssetRegistry."
+        ); // Use the exists field
 
         MultiSigWallet targetMultiSig;
         if (assetDataStore[tokenId].value > highValueThreshold) {
@@ -148,14 +196,17 @@ function getAssetDataDebug(uint256 tokenId) public view returns (
 
         // IMPORTANT: The owner (msg.sender) must have ALREADY CALLED:
         // assetNft.approve(address(targetMultiSig), tokenId)
-        require(assetNft.getApproved(tokenId) == address(targetMultiSig), "AssetRegistry: Chosen MultiSigWallet not approved for this token.");
+        require(
+            assetNft.getApproved(tokenId) == address(targetMultiSig),
+            "AssetRegistry: Chosen MultiSigWallet not approved for this token."
+        );
 
-    bytes memory callData = abi.encodeWithSelector(
-    bytes4(keccak256("safeTransferFrom(address,address,uint256)")),
-    currentOwner,
-    to,
-    tokenId
-);
+        bytes memory callData = abi.encodeWithSelector(
+            bytes4(keccak256("safeTransferFrom(address,address,uint256)")),
+            currentOwner,
+            to,
+            tokenId
+        );
 
         // The MultiSigWallet's createTransaction function should be callable by anyone authorized (e.g., onlySigner)
         // Here, we assume the currentOwner (msg.sender) is a signer on the targetMultiSig or can create tx.
@@ -165,16 +216,24 @@ function getAssetDataDebug(uint256 tokenId) public view returns (
         uint256 multiSigTxId = targetMultiSig.transactionCount(); // Get next txId
         targetMultiSig.createTransaction(
             address(assetNft), // Target contract to call
-            0,                 // ETH value
-            callData           // Encoded function call
+            0, // ETH value
+            callData // Encoded function call
         );
 
-        emit TransferInitiated(tokenId, currentOwner, to, address(targetMultiSig), multiSigTxId);
+        emit TransferInitiated(
+            tokenId,
+            currentOwner,
+            to,
+            address(targetMultiSig),
+            multiSigTxId
+        );
     }
 
     // --- Role Management Functions ---
 
-    function grantCertifiedProfessionalRole(address user) public onlyRole(ADMIN_ROLE) {
+    function grantCertifiedProfessionalRole(
+        address user
+    ) public onlyRole(ADMIN_ROLE) {
         grantRole(CERTIFIED_PROFESSIONAL_ROLE, user);
     }
 
@@ -182,12 +241,16 @@ function getAssetDataDebug(uint256 tokenId) public view returns (
         grantRole(BANK_ROLE, user);
     }
 
-    function getLifecycleHistory(uint256 tokenId) public view returns (LifecycleEvent[] memory) {
+    function getLifecycleHistory(
+        uint256 tokenId
+    ) public view returns (LifecycleEvent[] memory) {
         require(assetDataStore[tokenId].exists, "Asset does not exist");
         return assetDataStore[tokenId].lifecycleHistory;
     }
-    
-    function getLifecycleEventCount(uint256 tokenId) public view returns (uint256) {
+
+    function getLifecycleEventCount(
+        uint256 tokenId
+    ) public view returns (uint256) {
         require(assetDataStore[tokenId].exists, "Asset does not exist");
         return assetDataStore[tokenId].lifecycleHistory.length;
     }
